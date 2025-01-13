@@ -1,4 +1,4 @@
-package es.albertopolo.tarea15;
+package tarea_15;
 
 /**
  * Hello world!
