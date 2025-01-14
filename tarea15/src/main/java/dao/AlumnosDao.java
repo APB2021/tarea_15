@@ -3,10 +3,12 @@ package dao;
 import java.sql.Connection;
 import java.sql.SQLException;
 
-import model.Alumno;
-import model.Grupo;
+import modelo.Alumno;
+import modelo.Grupo;
 
 public interface AlumnosDao {
+
+	// ALUMNOS:
 
 	public boolean insertarAlumno(Connection conexionBD, Alumno alumno) throws SQLException;
 

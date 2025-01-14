@@ -4,6 +4,12 @@ import java.io.File;
 import java.sql.Connection;
 import java.util.Scanner;
 
+import dao.AlumnosDao;
+import dao.AlumnosDaoImpl;
+import modelo.Alumno;
+import modelo.Grupo;
+import pool.DatabasePool;
+
 /**
  * Esta clase se encarga de gestionar el menú principal de la aplicación.
  * Contiene las opciones para interactuar con los grupos y los alumnos.
@@ -12,8 +18,7 @@ import java.util.Scanner;
 public class Menu {
 
 	private final Scanner sc = new Scanner(System.in); // Scanner para la entrada de datos
-	private final GestorAlumnos gestorAlumnos = new GestorAlumnos(); // Gestor para los alumnos
-	private final GestorGrupos gestorGrupos = new GestorGrupos(); // Gestor para los grupos
+	private final AlumnosDao alumnosDao = new AlumnosDaoImpl(); // Gestor para alumnos y grupos
 
 	/**
 	 * Muestra el menú principal y permite seleccionar una opción. Permite al
@@ -99,10 +104,10 @@ public class Menu {
 		Connection conexionBD = null;
 
 		try {
-			Alumno alumno = gestorAlumnos.solicitarDatosAlumno();
-			conexionBD = ConexionBDMySQL.getConexion();
+			Alumno alumno = AlumnosDaoImpl.solicitarDatosAlumno();
+			conexionBD = DatabasePool.getConnection();
 
-			if (gestorAlumnos.insertarAlumno(conexionBD, alumno)) {
+			if (alumnosDao.insertarAlumno(conexionBD, alumno)) {
 				System.out.println("Alumno insertado correctamente.");
 			} else {
 				System.out.println("Error al insertar el alumno.");
@@ -147,10 +152,10 @@ public class Menu {
 			Grupo grupo = new Grupo(nombreGrupo);
 
 			// Obtener la conexión a la base de datos
-			conexionBD = ConexionBDMySQL.getConexion();
+			conexionBD = DatabasePool.getConnection();
 
 			// Intentamos insertar el nuevo grupo
-			if (gestorGrupos.insertarGrupo(conexionBD, grupo)) {
+			if (alumnosDao.insertarGrupo(conexionBD, grupo)) {
 				System.out.println("Grupo insertado correctamente.");
 			} else {
 				System.out.println("Error al insertar el grupo.");
@@ -170,8 +175,8 @@ public class Menu {
 	}
 
 	private void mostrarTodosLosAlumnos() {
-		try (Connection conexionBD = ConexionBDMySQL.getConexion()) {
-			if (gestorAlumnos.mostrarTodosLosAlumnos(conexionBD)) {
+		try (Connection conexionBD = DatabasePool.getConnection()) {
+			if (alumnosDao.mostrarTodosLosAlumnos(conexionBD)) {
 				System.out.println("Los alumnos se han mostrado correctamente.");
 			} else {
 				System.out.println("No se pudieron mostrar los alumnos.");
@@ -190,11 +195,11 @@ public class Menu {
 	private void guardarAlumnosEnFicheroTexto() {
 		try {
 			// Recuperamos todos los alumnos
-			Connection conexionBD = ConexionBDMySQL.getConexion();
+			Connection conexionBD = DatabasePool.getConnection();
 
 			// Llamamos al método que guarda los alumnos en el fichero de texto sin esperar
 			// un valor booleano
-			gestorAlumnos.guardarAlumnosEnFicheroTexto(conexionBD);
+			alumnosDao.guardarAlumnosEnFicheroTexto(conexionBD);
 
 			System.out.println("Alumnos guardados correctamente en el archivo de texto.");
 
@@ -209,9 +214,9 @@ public class Menu {
 	 */
 	private void leerAlumnosDesdeFichero() {
 		try {
-			Connection conexionBD = ConexionBDMySQL.getConexion();
+			Connection conexionBD = DatabasePool.getConnection();
 
-			if (gestorAlumnos.leerAlumnosDeFicheroTexto(conexionBD)) {
+			if (alumnosDao.leerAlumnosDeFicheroTexto(conexionBD)) {
 				System.out.println("Alumnos leídos e insertados correctamente desde el fichero 'alumnos.txt'.");
 			} else {
 				System.out.println("Ocurrió un error al procesar el fichero.");
@@ -244,10 +249,10 @@ public class Menu {
 			}
 
 			// Conectar a la base de datos
-			conexionBD = ConexionBDMySQL.getConexion();
+			conexionBD = DatabasePool.getConnection();
 
 			// Llamar al método del gestor para modificar el nombre
-			if (gestorAlumnos.modificarNombreAlumnoPorNia(conexionBD, nia, nuevoNombre)) {
+			if (alumnosDao.modificarNombreAlumnoPorNia(conexionBD, nia, nuevoNombre)) {
 				System.out.println("Nombre del alumno modificado correctamente.");
 			} else {
 				System.out.println("No se pudo modificar el nombre del alumno. Verifica el NIA.");
@@ -279,10 +284,10 @@ public class Menu {
 			sc.nextLine(); // Limpiar buffer
 
 			// Obtener la conexión a la base de datos
-			conexionBD = ConexionBDMySQL.getConexion();
+			conexionBD = DatabasePool.getConnection();
 
 			// Intentar eliminar el alumno
-			if (gestorAlumnos.eliminarAlumnoPorNIA(conexionBD, nia)) {
+			if (alumnosDao.eliminarAlumnoPorNIA(conexionBD, nia)) {
 				System.out.println("Alumno eliminado correctamente.");
 			} else {
 				System.out.println("No se encontró un alumno con el NIA proporcionado.");
@@ -311,11 +316,11 @@ public class Menu {
 
 		try {
 			// Establecemos conexión con la base de datos
-			conexionBD = ConexionBDMySQL.getConexion();
+			conexionBD = DatabasePool.getConnection();
 
 			// Mostramos los grupos disponibles
 			System.out.println("Grupos disponibles:");
-			if (!gestorGrupos.mostrarTodosLosGrupos(conexionBD)) {
+			if (!AlumnosDaoImpl.mostrarTodosLosGrupos(conexionBD)) {
 				System.out.println("No hay grupos registrados.");
 				return;
 			}
@@ -335,7 +340,7 @@ public class Menu {
 			}
 
 			// Llamamos al gestor para realizar la operación
-			if (gestorAlumnos.eliminarAlumnosPorGrupo(conexionBD, nombreGrupo)) {
+			if (alumnosDao.eliminarAlumnosPorGrupo(conexionBD, nombreGrupo)) {
 				System.out.println("Alumnos del grupo " + nombreGrupo + " eliminados correctamente.");
 			} else {
 				System.out.println(
@@ -366,10 +371,10 @@ public class Menu {
 
 		try {
 			// Obtenemos la conexión a la base de datos mediante la clase ConexionBDMySQL
-			conexionBD = ConexionBDMySQL.getConexion();
+			conexionBD = DatabasePool.getConnection();
 
 			// Llamamos al método de GestorGrupos para guardar los grupos en el archivo XML
-			if (gestorGrupos.guardarGruposEnXML(conexionBD)) {
+			if (AlumnosDaoImpl.guardarGruposEnXML(conexionBD)) {
 				// Si el proceso es exitoso, mostramos un mensaje de éxito
 				System.out.println("Archivo XML guardado correctamente.");
 			} else {
@@ -392,52 +397,54 @@ public class Menu {
 			}
 		}
 	}
-	
+
 	/**
-	 * Lee el archivo XML de grupos (alumnos.xml) y guarda los datos en la base de datos MySQL.
-	 * Si ocurre un error durante el proceso, se captura la excepción y se muestra un mensaje de error.
+	 * Lee el archivo XML de grupos (alumnos.xml) y guarda los datos en la base de
+	 * datos MySQL. Si ocurre un error durante el proceso, se captura la excepción y
+	 * se muestra un mensaje de error.
 	 */
 	private void leerYGuardarGruposXML() {
-	    // Variable para almacenar la conexión a la base de datos
-	    Connection conexionBD = null;
+		// Variable para almacenar la conexión a la base de datos
+		Connection conexionBD = null;
 
-	    try {
-	        // Obtenemos la conexión a la base de datos mediante la clase ConexionBDMySQL
-	        conexionBD = ConexionBDMySQL.getConexion();
+		try {
+			// Obtenemos la conexión a la base de datos mediante la clase ConexionBDMySQL
+			conexionBD = DatabasePool.getConnection();
 
-	        // Ruta fija del archivo XML de grupos
-	        String rutaArchivo = "grupos.xml";
+			// Ruta fija del archivo XML de grupos
+			String rutaArchivo = "grupos.xml";
 
-	        // Verificamos si el archivo existe
-	        File archivoXML = new File(rutaArchivo);
-	        if (!archivoXML.exists()) {
-	            System.out.println("El archivo XML no existe en la ruta especificada: " + rutaArchivo);
-	            return; // Salimos del método si el archivo no existe
-	        }
+			// Verificamos si el archivo existe
+			File archivoXML = new File(rutaArchivo);
+			if (!archivoXML.exists()) {
+				System.out.println("El archivo XML no existe en la ruta especificada: " + rutaArchivo);
+				return; // Salimos del método si el archivo no existe
+			}
 
-	        // Llamamos al método de GestorGrupos para leer los grupos en el archivo XML
-	        if (GestorGrupos.leerYGuardarGruposXML(rutaArchivo, conexionBD)) {
-	            // Si el proceso es exitoso, mostramos un mensaje de éxito
-	            System.out.println("Archivo XML leído correctamente y datos guardados en la base de datos.");
-	        } else {
-	            // Si hubo un error en el proceso, mostramos un mensaje de fallo
-	            System.out.println("Error al procesar el archivo XML.");
-	        }
-	        
-	    } catch (Exception e) {
-	        // Capturamos cualquier excepción y mostramos el mensaje de error
-	        System.out.println("Ocurrió un error al leer los grupos en XML: " + e.getMessage());
-	    } finally {
-	        // Cerramos la conexión a la base de datos en el bloque finally
-	        try {
-	            if (conexionBD != null && !conexionBD.isClosed()) {
-	                conexionBD.close();
-	                System.out.println("Conexión a la base de datos cerrada.");
-	            }
-	        } catch (Exception e) {
-	            System.out.println("Error al cerrar la conexión: " + e.getMessage());
-	        }
-	    }
+			// Llamamos al método de GestorGrupos para leer los grupos en el archivo XML
+			if (AlumnosDaoImpl.leerYGuardarGruposXML(rutaArchivo, conexionBD)) {
+				// Si el proceso es exitoso, mostramos un mensaje de éxito
+				System.out.println("Archivo XML leído correctamente y datos guardados en la base de datos.");
+			} else {
+				// Si hubo un error en el proceso, mostramos un mensaje de fallo
+				System.out.println("Error al procesar el archivo XML.");
+			}
+
+		} catch (Exception e) {
+			// Capturamos cualquier excepción y mostramos el mensaje de error
+			System.out.println("Ocurrió un error al leer los grupos en XML: " + e.getMessage());
+		} finally {
+			// Cerramos la conexión a la base de datos en el bloque finally
+			try {
+				if (conexionBD != null && !conexionBD.isClosed()) {
+					conexionBD.close();
+					System.out.println("Conexión a la base de datos cerrada.");
+				}
+			} catch (Exception e) {
+				System.out.println("Error al cerrar la conexión: " + e.getMessage());
+			}
+		}
+
 	}
 
 }

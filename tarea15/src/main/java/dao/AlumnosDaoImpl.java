@@ -3,8 +3,8 @@ package dao;
 import java.sql.Connection;
 import java.sql.SQLException;
 
-import model.Alumno;
-import model.Grupo;
+import modelo.Alumno;
+import modelo.Grupo;
 
 public class AlumnosDaoImpl implements AlumnosDao{
 
@@ -82,6 +82,26 @@ public class AlumnosDaoImpl implements AlumnosDao{
 
 	@Override
 	public boolean leerGruposDeFicheroJSON(Connection conexionBD) throws SQLException {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	public static Alumno solicitarDatosAlumno() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	public static boolean mostrarTodosLosGrupos(Connection conexionBD) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	public static boolean guardarGruposEnXML(Connection conexionBD) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	public static boolean leerYGuardarGruposXML(String rutaArchivo, Connection conexionBD) {
 		// TODO Auto-generated method stub
 		return false;
 	}
