@@ -16,7 +16,8 @@ public class DatabasePool {
 		try {
 			// Carga las propiedades desde el archivo
 			Properties properties = new Properties();
-			try (FileInputStream fis = new FileInputStream("db.properties")) {
+
+			try (FileInputStream fis = new FileInputStream("src\\main\\resources\\db.properties")) {
 				properties.load(fis);
 			}
 

@@ -26,8 +26,11 @@ public class AlumnosDaoImpl implements AlumnosDao {
 
 	@Override
 	public boolean mostrarTodosLosAlumnos(Connection conexionBD) throws SQLException {
+		
 		String sql = "SELECT a.nia, a.nombre, a.apellidos, a.genero, a.fechaNacimiento, a.ciclo, a.curso, g.nombreGrupo "
-				+ "FROM alumnos a " + "JOIN grupos g ON a.numeroGrupo = g.numeroGrupo" + "ORDER BY a.nia";
+	            + "FROM alumnos a "
+	            + "JOIN grupos g ON a.numeroGrupo = g.numeroGrupo "
+	            + "ORDER BY a.nia";
 
 		try (PreparedStatement sentencia = conexionBD.prepareStatement(sql);
 				ResultSet resultado = sentencia.executeQuery()) {
