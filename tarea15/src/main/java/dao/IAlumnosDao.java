@@ -6,11 +6,15 @@ import java.sql.SQLException;
 import modelo.Alumno;
 import modelo.Grupo;
 
-public interface AlumnosDao {
+public interface IAlumnosDao {
 
 	// ALUMNOS:
 
 	public boolean insertarAlumno(Connection conexionBD, Alumno alumno) throws SQLException;
+
+	// añadido:
+
+	public Alumno solicitarDatosAlumno() throws SQLException;
 
 	public boolean mostrarTodosLosAlumnos(Connection conexionBD) throws SQLException;
 

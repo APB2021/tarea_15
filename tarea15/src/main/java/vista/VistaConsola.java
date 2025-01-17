@@ -1,11 +1,12 @@
-package menu;
+package vista;
 
 import java.io.File;
 import java.sql.Connection;
+import java.util.InputMismatchException;
 import java.util.Scanner;
 
-import dao.AlumnosDao;
-import dao.AlumnosDaoImpl;
+import dao.IAlumnosDao;
+import dao.AlumnosBD;
 import modelo.Alumno;
 import modelo.Grupo;
 import pool.DatabasePool;
@@ -15,10 +16,10 @@ import pool.DatabasePool;
  * Contiene las opciones para interactuar con los grupos y los alumnos.
  */
 
-public class Menu {
+public class VistaConsola implements IVista {
 
 	private final Scanner sc = new Scanner(System.in); // Scanner para la entrada de datos
-	private final AlumnosDao alumnosDao = new AlumnosDaoImpl(); // Gestor para alumnos y grupos
+	private final IAlumnosDao alumnosDao = new AlumnosBD(); // Gestor para alumnos y grupos
 
 	/**
 	 * Muestra el menú principal y permite seleccionar una opción. Permite al
@@ -26,85 +27,88 @@ public class Menu {
 	 * alumnos y guardar los datos de los alumnos en un archivo de texto.
 	 */
 
-	public void mostrarMenu() {
+	/**
+	 * Clase encargada de mostrar el menú principal y gestionar las interacciones
+	 * con el usuario para operar con alumnos y grupos.
+	 */
+	public void mostrarMenu(IAlumnosDao modelo) {
 		int opcion;
-
 		do {
-			System.out.println("---- Menú Principal ----");
-			System.out.println("1. Insertar nuevo alumno");
-			System.out.println("2. Insertar nuevo grupo");
-			System.out.println("3. Mostrar todos los alumnos");
-			System.out.println("4. Guardar todos los alumnos en un fichero de texto");
-			System.out.println("5. Leer alumnos de un fichero de texto y guardarlos en la BD");
-			System.out.println("6. Modificar el nombre de un alumno por su NIA");
-			System.out.println("7. Eliminar un alumno a partir de su NIA");
-			System.out.println("8. Eliminar los alumnos del grupo indicado");
-			System.out.println("9. Guardar grupos y alumnos en un archivo XML");
-			System.out.println("10. Leer un archivo XML de grupos y guardar los datos en la BD");
-
-			System.out.println("0. Salir");
-			System.out.println("-------------------------");
+			imprimirMenu();
 			System.out.print("Selecciona una opción: ");
-
 			try {
 				opcion = sc.nextInt();
 				sc.nextLine(); // Limpiar buffer
-
-				switch (opcion) {
-				case 1:
-					insertarNuevoAlumno();
-					break;
-				case 2:
-					insertarNuevoGrupo();
-					break;
-				case 3:
-					mostrarTodosLosAlumnos();
-					break;
-				case 4:
-					guardarAlumnosEnFicheroTexto();
-					break;
-				case 5:
-					leerAlumnosDesdeFichero();
-					break;
-				case 6:
-					modificarNombreAlumnoPorNia();
-					break;
-				case 7:
-					eliminarAlumnoPorNIA();
-					;
-					break;
-				case 8:
-					eliminarAlumnosPorGrupo();
-					break;
-				case 9:
-					guardarGruposEnXML();
-					break;
-				case 10:
-					leerYGuardarGruposXML();
-					break;
-				case 0:
-					System.out.println("Saliendo del programa...");
-					break;
-				default:
-					System.out.println("Opción no válida. Intenta de nuevo.");
-				}
-			} catch (Exception e) {
+				gestionarOpcion(opcion, modelo);
+			} catch (InputMismatchException e) {
 				System.out.println("Entrada no válida. Por favor, introduce un número.");
-				sc.nextLine(); // Limpiar el buffer en caso de error
-				opcion = 0; // Reiniciar la opción para evitar salir del bucle
+				sc.nextLine(); // Limpiar buffer en caso de error
+				opcion = -1; // Reiniciar opción para evitar salir del bucle
 			}
-		} while (opcion != 0); // Modificado para que salga correctamente con la opción 0
+		} while (opcion != 0);
+	}
+
+	/**
+	 * Imprime las opciones disponibles en el menú principal.
+	 */
+	private void imprimirMenu() {
+		System.out.println("---- Menú Principal ----");
+		System.out.println("1. Insertar nuevo alumno");
+		System.out.println("2. Insertar nuevo grupo");
+		System.out.println("3. Mostrar todos los alumnos");
+		System.out.println("4. Guardar todos los alumnos en un fichero de texto");
+		System.out.println("5. Leer alumnos de un fichero de texto y guardarlos en la BD");
+		System.out.println("6. Modificar el nombre de un alumno por su NIA");
+		System.out.println("7. Eliminar un alumno a partir de su NIA");
+		System.out.println("8. Eliminar los alumnos del grupo indicado");
+		System.out.println("9. Guardar grupos y alumnos en un archivo XML");
+		System.out.println("10. Leer un archivo XML de grupos y guardar los datos en la BD");
+		System.out.println("0. Salir");
+		System.out.println("-------------------------");
+	}
+
+	/**
+	 * Gestiona la opción seleccionada por el usuario y llama al método
+	 * correspondiente.
+	 * 
+	 * @param opcion Opción seleccionada por el usuario.
+	 * @param modelo Modelo de datos de alumnos y grupos.
+	 */
+	private void gestionarOpcion(int opcion, IAlumnosDao modelo) {
+		switch (opcion) {
+
+		case 1 -> insertarNuevoAlumno(modelo);
+		case 2 -> insertarNuevoGrupo(modelo);
+		case 3 -> mostrarTodosLosAlumnos();
+		case 4 -> guardarAlumnosEnFicheroTexto();
+		case 5 -> leerAlumnosDesdeFichero();
+		case 6 -> modificarNombreAlumnoPorNia();
+		case 7 -> eliminarAlumnoPorNIA();
+		case 8 -> eliminarAlumnosPorGrupo();
+		case 9 -> guardarGruposEnXML();
+		case 10 -> leerYGuardarGruposXML();
+		case 0 -> System.out.println("Saliendo del programa...");
+		default -> System.out.println("Opción no válida. Intenta de nuevo.");
+		}
 	}
 
 	/**
 	 * Permite insertar un nuevo alumno solicitando los datos al usuario y
 	 * almacenándolos en la base de datos.
+	 * 
+	 * @param modelo
 	 */
-	private void insertarNuevoAlumno() {
+	public void insertarNuevoAlumno(IAlumnosDao modelo) {
 		Connection conexionBD = null;
 
 		try {
-			Alumno alumno = AlumnosDaoImpl.solicitarDatosAlumno();
+			Alumno alumno = null;
+			try {
+				alumno = modelo.solicitarDatosAlumno();
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 			conexionBD = DatabasePool.getConnection();
 
 			if (alumnosDao.insertarAlumno(conexionBD, alumno)) {
@@ -130,7 +134,7 @@ public class Menu {
 	 * Permite insertar un nuevo grupo solicitando los datos al usuario y
 	 * almacenándolos en la base de datos.
 	 */
-	private void insertarNuevoGrupo() {
+	public void insertarNuevoGrupo(IAlumnosDao modelo) {
 		Connection conexionBD = null;
 		String nombreGrupo;
 
@@ -174,7 +178,7 @@ public class Menu {
 		}
 	}
 
-	private void mostrarTodosLosAlumnos() {
+	public void mostrarTodosLosAlumnos() {
 		try (Connection conexionBD = DatabasePool.getConnection()) {
 			if (alumnosDao.mostrarTodosLosAlumnos(conexionBD)) {
 				System.out.println("Los alumnos se han mostrado correctamente.");
@@ -192,7 +196,7 @@ public class Menu {
 	 * llamado "alumnos.txt". La información incluye: nombre, apellidos, género,
 	 * fecha de nacimiento, ciclo, curso y nombre del grupo.
 	 */
-	private void guardarAlumnosEnFicheroTexto() {
+	public void guardarAlumnosEnFicheroTexto() {
 		try {
 			// Recuperamos todos los alumnos
 			Connection conexionBD = DatabasePool.getConnection();
@@ -212,7 +216,7 @@ public class Menu {
 	 * Permite leer alumnos desde el fichero fijo "alumnos.txt" y guardarlos en la
 	 * base de datos.
 	 */
-	private void leerAlumnosDesdeFichero() {
+	public void leerAlumnosDesdeFichero() {
 		try {
 			Connection conexionBD = DatabasePool.getConnection();
 
@@ -230,7 +234,7 @@ public class Menu {
 	 * Permite modificar el nombre de un alumno solicitando su NIA y el nuevo
 	 * nombre.
 	 */
-	private void modificarNombreAlumnoPorNia() {
+	public void modificarNombreAlumnoPorNia() {
 		Connection conexionBD = null;
 		try {
 			// Solicitar al usuario el NIA del alumno
@@ -274,7 +278,7 @@ public class Menu {
 	/**
 	 * Permite eliminar un alumno de la base de datos a partir de su NIA (PK).
 	 */
-	private void eliminarAlumnoPorNIA() {
+	public void eliminarAlumnoPorNIA() {
 		Connection conexionBD = null;
 
 		try {
@@ -311,7 +315,7 @@ public class Menu {
 	 * los grupos existentes y permite al usuario seleccionar uno. Luego elimina a
 	 * todos los alumnos que pertenezcan al grupo seleccionado.
 	 */
-	private void eliminarAlumnosPorGrupo() {
+	public void eliminarAlumnosPorGrupo() {
 		Connection conexionBD = null;
 
 		try {
@@ -320,7 +324,7 @@ public class Menu {
 
 			// Mostramos los grupos disponibles
 			System.out.println("Grupos disponibles:");
-			if (!AlumnosDaoImpl.mostrarTodosLosGrupos(conexionBD)) {
+			if (!AlumnosBD.mostrarTodosLosGrupos(conexionBD)) {
 				System.out.println("No hay grupos registrados.");
 				return;
 			}
@@ -365,7 +369,7 @@ public class Menu {
 	 * Utiliza la conexión a la base de datos proporcionada por la clase
 	 * ConexionBDMySQL.
 	 */
-	private void guardarGruposEnXML() {
+	public void guardarGruposEnXML() {
 		// Variable para almacenar la conexión a la base de datos
 		Connection conexionBD = null;
 
@@ -374,7 +378,7 @@ public class Menu {
 			conexionBD = DatabasePool.getConnection();
 
 			// Llamamos al método de GestorGrupos para guardar los grupos en el archivo XML
-			if (AlumnosDaoImpl.guardarGruposEnXML(conexionBD)) {
+			if (AlumnosBD.guardarGruposEnXML(conexionBD)) {
 				// Si el proceso es exitoso, mostramos un mensaje de éxito
 				System.out.println("Archivo XML guardado correctamente.");
 			} else {
@@ -403,7 +407,7 @@ public class Menu {
 	 * datos MySQL. Si ocurre un error durante el proceso, se captura la excepción y
 	 * se muestra un mensaje de error.
 	 */
-	private void leerYGuardarGruposXML() {
+	public void leerYGuardarGruposXML() {
 		// Variable para almacenar la conexión a la base de datos
 		Connection conexionBD = null;
 
@@ -422,7 +426,7 @@ public class Menu {
 			}
 
 			// Llamamos al método de GestorGrupos para leer los grupos en el archivo XML
-			if (AlumnosDaoImpl.leerYGuardarGruposXML(rutaArchivo, conexionBD)) {
+			if (AlumnosBD.leerYGuardarGruposXML(rutaArchivo, conexionBD)) {
 				// Si el proceso es exitoso, mostramos un mensaje de éxito
 				System.out.println("Archivo XML leído correctamente y datos guardados en la base de datos.");
 			} else {
