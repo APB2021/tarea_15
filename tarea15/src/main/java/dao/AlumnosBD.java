@@ -10,6 +10,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -539,10 +540,49 @@ public class AlumnosBD implements IAlumnosDao {
 		}
 	}
 
+	/**
+	 * Elimina a todos los alumnos de un grupo específico.
+	 * 
+	 * @param conexionBD  la conexión activa a la base de datos.
+	 * @param nombreGrupo el nombre del grupo cuyos alumnos serán eliminados.
+	 * @return true si se eliminaron correctamente, false si ocurrió un error.
+	 */
+	
 	@Override
-	public boolean eliminarAlumnosPorGrupo(Connection conexionBD, String grupo) throws SQLException {
-		// TODO Auto-generated method stub
-		return false;
+	public boolean eliminarAlumnosPorGrupo(Connection conexionBD, String nombreGrupo) throws SQLException {
+		// Verificamos si el grupo tiene alumnos antes de intentar eliminar
+		String comprobarAlumnosSql = "SELECT COUNT(*) FROM alumnos WHERE numeroGrupo = (SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?)";
+
+		try (PreparedStatement comprobarAlumnosSentencia = conexionBD.prepareStatement(comprobarAlumnosSql)) {
+			comprobarAlumnosSentencia.setString(1, nombreGrupo);
+
+			ResultSet resultado = comprobarAlumnosSentencia.executeQuery();
+			if (resultado.next()) {
+				int cantidadAlumnos = resultado.getInt(1);
+
+				if (cantidadAlumnos == 0) {
+					System.out.println("El grupo " + nombreGrupo + " no tiene alumnos.");
+					return false; // Si no hay alumnos, no eliminamos nada
+				}
+			}
+
+			// Procedemos a eliminar los alumnos si existen
+			String sql = "DELETE FROM alumnos WHERE numeroGrupo = (SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?)";
+			try (PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
+				sentencia.setString(1, nombreGrupo);
+
+				int filasAfectadas = sentencia.executeUpdate();
+				return filasAfectadas > 0;
+
+			} catch (SQLException e) {
+				System.out.println("Error al eliminar alumnos por grupo: " + e.getMessage());
+				return false;
+			}
+
+		} catch (SQLException e) {
+			System.out.println("Error al verificar si el grupo tiene alumnos: " + e.getMessage());
+			return false;
+		}
 	}
 
 	@Override
@@ -556,10 +596,28 @@ public class AlumnosBD implements IAlumnosDao {
 		// TODO Auto-generated method stub
 		return false;
 	}
+	
+	/**
+	 * Muestra todos los grupos disponibles en la base de datos.
+	 * 
+	 * @param conexionBD la conexión activa a la base de datos.
+	 * @return true si se muestran los grupos correctamente, false si no hay grupos
+	 *         o hay un error.
+	 */
 
 	public static boolean mostrarTodosLosGrupos(Connection conexionBD) {
-		// TODO Auto-generated method stub
-		return false;
+		String sql = "SELECT nombreGrupo FROM grupos";
+		try (Statement sentencia = conexionBD.createStatement(); ResultSet resultado = sentencia.executeQuery(sql)) {
+			boolean hayGrupos = false;
+			while (resultado.next()) {
+				hayGrupos = true;
+				System.out.println("- " + resultado.getString("nombreGrupo"));
+			}
+			return hayGrupos;
+		} catch (SQLException e) {
+			System.out.println("Error al mostrar los grupos: " + e.getMessage());
+			return false;
+		}
 	}
 
 	public static boolean guardarGruposEnXML(Connection conexionBD) {
