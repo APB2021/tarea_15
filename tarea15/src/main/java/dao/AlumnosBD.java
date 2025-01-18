@@ -472,10 +472,30 @@ public class AlumnosBD implements IAlumnosDao {
 
 	}
 
+	/**
+	 * Elimina un alumno de la base de datos a partir de su NIA.
+	 * 
+	 * @param conexionBD la conexión a la base de datos
+	 * @param nia        el NIA del alumno a eliminar
+	 * @return true si el alumno fue eliminado correctamente, false en caso
+	 *         contrario
+	 */
+	
 	@Override
 	public boolean eliminarAlumnoPorNIA(Connection conexionBD, int nia) throws SQLException {
-		// TODO Auto-generated method stub
-		return false;
+		String sql = "DELETE FROM alumnos WHERE nia = ?";
+
+		try (PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
+			sentencia.setInt(1, nia);
+
+			// Ejecutar la consulta
+			int filasAfectadas = sentencia.executeUpdate();
+			return filasAfectadas > 0; // Devuelve true si al menos una fila fue eliminada
+		} catch (SQLException e) {
+			System.out.println("Error al eliminar el alumno: " + e.getMessage());
+			return false;
+		}
+
 	}
 
 	@Override
