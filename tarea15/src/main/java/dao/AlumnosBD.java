@@ -1,5 +1,9 @@
 package dao;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -205,9 +209,110 @@ public class AlumnosBD implements IAlumnosDao {
 
 	}
 
+	/**
+	 * Guarda todos los alumnos en un fichero de texto. La información de los
+	 * alumnos, incluyendo el grupo al que pertenecen, se obtiene desde la base de
+	 * datos y luego se escribe en un archivo de texto.
+	 * 
+	 * @param conexionBD Conexión a la base de datos MySQL.
+	 */
+	
 	@Override
 	public void guardarAlumnosEnFicheroTexto(Connection conexionBD) throws SQLException {
-		// TODO Auto-generated method stub
+		// Definir el nombre del fichero de texto donde se guardarán los alumnos
+		File fichero = new File("alumnos.txt");
+
+		// Comprobamos si el fichero ya existe. Si es así, preguntamos al usuario si
+		// desea sobreescribirlo
+		if (fichero.exists()) {
+			System.out.print("El fichero ya existe. ¿Desea sobreescribirlo? (S/N): ");
+			char respuesta = sc.nextLine().charAt(0);
+			if (respuesta != 'S' && respuesta != 's') {
+				System.out.println("Operación cancelada. El fichero no se sobrescribirá.");
+				return;
+			}
+		}
+
+		// Preparamos el flujo de salida para escribir en el fichero de texto
+		// Utilizamos un BufferedWriter para escribir en el fichero de texto.
+		// Lo creamos con un FileWriter que apunta al fichero alumnos.txt.
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(fichero))) {
+
+			// Preparamos la consulta SQL para obtener los datos de los alumnos y sus
+			// grupos:
+
+			/*
+			 * Explicación de la consulta SQL:
+			 * 
+			 * SELECT: Indica que queremos obtener datos de la base de datos.
+			 * 
+			 * a.nia, a.nombre, a.apellidos, a.genero, a.fechaNacimiento, a.ciclo, a.curso:
+			 * Son los campos que seleccionamos de la tabla alumnos.
+			 * 
+			 * El prefijo a es un alias para la tabla alumnos. g.nombreGrupo: Este es el
+			 * nombre del grupo, que proviene de la tabla grupos.
+			 * 
+			 * El prefijo g es un alias para la tabla grupos.
+			 * 
+			 * Esta parte indica que vamos a trabajar con la tabla alumnos, que hemos
+			 * abreviado como a para simplificar la consulta.
+			 * 
+			 * JOIN grupos g ON a.numeroGrupo = g.numeroGrupo:
+			 * 
+			 * JOIN: Es la palabra clave que indica que queremos combinar datos de dos
+			 * tablas.
+			 * 
+			 * En este caso, estamos combinando alumnos con grupos.
+			 * 
+			 * a.numeroGrupo = g.numeroGrupo: La condición de la unión.
+			 * 
+			 * Queremos que se combinen los registros de alumnos y grupos cuando el valor de
+			 * numeroGrupo en la tabla alumnos coincida con el valor de numeroGrupo en la
+			 * tabla grupos.
+			 * 
+			 * ¿Por qué usamos JOIN?
+			 * 
+			 * Usamos un JOIN para obtener información de dos tablas relacionadas. En este
+			 * caso, un alumno pertenece a un grupo, y para obtener el nombre del grupo,
+			 * necesitamos combinar las tablas alumnos y grupos.
+			 */
+			String sql = "SELECT a.nia, a.nombre, a.apellidos, a.genero, a.fechaNacimiento, a.ciclo, a.curso, g.nombreGrupo "
+					+ "FROM alumnos a " + "JOIN grupos g ON a.numeroGrupo = g.numeroGrupo";
+
+			// Ejecutamos la consulta SQL
+			try (PreparedStatement sentencia = conexionBD.prepareStatement(sql);
+					ResultSet resultado = sentencia.executeQuery()) {
+
+				// Escribimos los encabezados de las columnas en el fichero
+				writer.write("NIA,Nombre,Apellidos,Género,Fecha Nacimiento,Ciclo,Curso,Nombre del Grupo");
+				writer.newLine();
+
+				// Recorremos los resultados de la consulta SQL
+				while (resultado.next()) {
+					// Recuperamos los datos de cada columna del resultado de la consulta
+					int nia = resultado.getInt("nia");
+					String nombre = resultado.getString("nombre");
+					String apellidos = resultado.getString("apellidos");
+					String genero = resultado.getString("genero");
+					String fechaNacimiento = resultado.getString("fechaNacimiento");
+					String ciclo = resultado.getString("ciclo");
+					String curso = resultado.getString("curso");
+					String nombreGrupo = resultado.getString("nombreGrupo");
+
+					// Escribimos los datos de cada alumno en el fichero de texto
+					writer.write(nia + "," + nombre + "," + apellidos + "," + genero + "," + fechaNacimiento + ","
+							+ ciclo + "," + curso + "," + nombreGrupo);
+					writer.newLine();
+				}
+
+				System.out.println("Datos de los alumnos guardados correctamente en el fichero 'alumnos.txt'.");
+			} catch (SQLException e) {
+				System.out.println("Error al ejecutar la consulta SQL: " + e.getMessage());
+			}
+
+		} catch (IOException e) {
+			System.out.println("Error al escribir en el fichero: " + e.getMessage());
+		}
 
 	}
 

@@ -22,7 +22,7 @@ public class Controlador {
 		// Inicializar los logs
 		InicializarLogs.inicializarLogs();
 
-		// Llamar al menú principal
+		// Llamar a la vista que contiene el menú principal en consola
 		vista.mostrarMenu(modelo);
 	}
 }
