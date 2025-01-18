@@ -444,11 +444,32 @@ public class AlumnosBD implements IAlumnosDao {
 		}
 		return -1; // Si no se encuentra el grupo, devolvemos -1
 	}
+	
+	/**
+	 * Modifica el nombre de un alumno en la base de datos basado en su NIA.
+	 * 
+	 * @param conexion    conexión a la base de datos
+	 * @param nia         NIA del alumno
+	 * @param nuevoNombre nuevo nombre del alumno
+	 * @return true si la modificación fue exitosa; false en caso contrario
+	 */
 
 	@Override
 	public boolean modificarNombreAlumnoPorNia(Connection conexion, int nia, String nuevoNombre) throws SQLException {
-		// TODO Auto-generated method stub
-		return false;
+		String sql = "UPDATE alumnos SET nombre = ? WHERE nia = ?";
+		try (PreparedStatement sentencia = conexion.prepareStatement(sql)) {
+			// Establecer los valores
+			sentencia.setString(1, nuevoNombre);
+			sentencia.setInt(2, nia);
+
+			// Ejecutar la actualización
+			int filasActualizadas = sentencia.executeUpdate();
+			return filasActualizadas > 0; // Devolver true si se actualizó al menos una fila
+		} catch (Exception e) {
+			System.out.println("Error al modificar el nombre del alumno: " + e.getMessage());
+			return false;
+		}
+
 	}
 
 	@Override
