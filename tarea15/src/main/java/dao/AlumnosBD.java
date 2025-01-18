@@ -1,7 +1,9 @@
 package dao;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.Connection;
@@ -16,7 +18,6 @@ import java.util.Scanner;
 import modelo.Alumno;
 import modelo.Grupo;
 import pool.DatabasePool;
-
 
 public class AlumnosBD implements IAlumnosDao {
 
@@ -216,7 +217,7 @@ public class AlumnosBD implements IAlumnosDao {
 	 * 
 	 * @param conexionBD Conexión a la base de datos MySQL.
 	 */
-	
+
 	@Override
 	public void guardarAlumnosEnFicheroTexto(Connection conexionBD) throws SQLException {
 		// Definir el nombre del fichero de texto donde se guardarán los alumnos
@@ -316,10 +317,132 @@ public class AlumnosBD implements IAlumnosDao {
 
 	}
 
+	/**
+	 * Lee los alumnos desde el fichero de texto 'alumnos.txt' y los inserta en la
+	 * base de datos. El formato del fichero debe ser:
+	 * NIA,Nombre,Apellidos,Género,Fecha Nacimiento,Ciclo,Curso,Nombre del Grupo
+	 *
+	 * @param conexionBD Conexión a la base de datos MySQL
+	 * @return true si todos los alumnos fueron insertados correctamente, false si
+	 *         ocurrió algún error
+	 */
+
 	@Override
 	public boolean leerAlumnosDeFicheroTexto(Connection conexionBD) throws SQLException {
-		// TODO Auto-generated method stub
-		return false;
+		String fichero = "alumnos.txt";
+		try (BufferedReader br = new BufferedReader(new FileReader(fichero))) {
+			String linea;
+			int lineasInsertadas = 0;
+
+			// Ignoramos la primera línea (cabecera)
+			br.readLine();
+
+			// Leemos cada línea del archivo
+			while ((linea = br.readLine()) != null) {
+				System.out.println("Leyendo línea: " + linea); // Depuración, muestra la línea leída
+
+				// Separamos los campos por coma
+				String[] datos = linea.split(",");
+
+				// Verificamos que la línea tenga 8 campos (porque el NIA está incluido)
+				if (datos.length == 8) {
+					// Extraemos los datos de cada campo, ignorando el primer campo (NIA)
+					String nombre = datos[1]; // Nombre
+					String apellidos = datos[2]; // Apellidos
+					char genero = datos[3].charAt(0); // Género (primer carácter)
+					String fechaNacimiento = datos[4]; // Fecha Nacimiento
+					String ciclo = datos[5]; // Ciclo
+					String curso = datos[6]; // Curso
+					String grupo = datos[7]; // Nombre del Grupo
+
+					// Imprimir los datos extraídos
+					System.out.println("Datos extraídos: ");
+					System.out.println("Nombre: " + nombre);
+					System.out.println("Apellidos: " + apellidos);
+					System.out.println("Género: " + genero);
+					System.out.println("Fecha Nacimiento: " + fechaNacimiento);
+					System.out.println("Ciclo: " + ciclo);
+					System.out.println("Curso: " + curso);
+					System.out.println("Grupo: " + grupo);
+
+					// Convertimos la fecha
+					SimpleDateFormat formatoFecha = new SimpleDateFormat("yyyy-MM-dd");
+					Date fechaUtil = null;
+
+					try {
+						fechaUtil = formatoFecha.parse(fechaNacimiento);
+						System.out.println("Fecha convertida: " + fechaUtil);
+					} catch (ParseException e) {
+						System.out.println("Error al convertir la fecha: " + fechaNacimiento);
+						continue; // Salta a la siguiente línea si la fecha es inválida
+					}
+
+					// Obtenemos el número del grupo correspondiente al nombre del grupo
+					int numeroGrupo = obtenerNumeroGrupoPorNombre(conexionBD, grupo);
+
+					if (numeroGrupo != -1) {
+						// Creamos el objeto Grupo
+						Grupo grupoObj = new Grupo(numeroGrupo, grupo);
+
+						// Creamos un objeto Alumno
+						Alumno alumno = new Alumno();
+						alumno.setNombre(nombre);
+						alumno.setApellidos(apellidos);
+						alumno.setGenero(genero);
+						alumno.setFechaNacimiento(fechaUtil);
+						alumno.setCiclo(ciclo);
+						alumno.setCurso(curso);
+						alumno.setGrupo(grupoObj); // Asignamos el objeto Grupo
+
+						// Insertamos el alumno en la base de datos
+						insertarAlumno(conexionBD, alumno);
+						lineasInsertadas++;
+						System.out.println("Alumno insertado: " + nombre + " " + apellidos);
+					} else {
+						System.out.println("El grupo '" + grupo + "' no existe en la base de datos. Alumno ignorado.");
+					}
+				} else {
+					System.out.println("Línea inválida en el fichero (número de campos incorrecto): " + linea); // Si
+																												// los
+																												// campos
+																												// no
+																												// son
+																												// correctos
+				}
+			}
+
+			if (lineasInsertadas > 0) {
+				System.out.println("Alumnos leídos e insertados correctamente desde el fichero 'alumnos.txt'.");
+				return true; // Todos los alumnos fueron insertados
+			} else {
+				System.out.println("No se insertaron alumnos.");
+				return false;
+			}
+		} catch (IOException e) {
+			System.out.println("Ocurrió un error al leer el archivo: " + e.getMessage());
+			return false;
+		}
+	}
+	
+	/**
+	 * Obtiene el número del grupo a partir del nombre del grupo.
+	 *
+	 * @param conexionBD  Conexión a la base de datos
+	 * @param nombreGrupo Nombre del grupo
+	 * @return El número del grupo, o -1 si no se encuentra el grupo
+	 */
+	private int obtenerNumeroGrupoPorNombre(Connection conexionBD, String nombreGrupo) {
+		String sql = "SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?";
+		try (PreparedStatement stmt = conexionBD.prepareStatement(sql)) {
+			stmt.setString(1, nombreGrupo);
+			ResultSet rs = stmt.executeQuery();
+			if (rs.next()) {
+				return rs.getInt("numeroGrupo");
+			}
+		} catch (SQLException e) {
+			System.out.println("Error al obtener el número de grupo: " + e.getMessage());
+		}
+		return -1; // Si no se encuentra el grupo, devolvemos -1
 	}
 
 	@Override
@@ -351,7 +474,7 @@ public class AlumnosBD implements IAlumnosDao {
 		// TODO Auto-generated method stub
 		return false;
 	}
-	
+
 	/**
 	 * Inserta un nuevo grupo en la base de datos.
 	 *
