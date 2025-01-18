@@ -28,6 +28,8 @@ import javax.xml.transform.stream.StreamResult;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import modelo.Alumno;
 import modelo.Grupo;
@@ -744,9 +746,111 @@ public class AlumnosBD implements IAlumnosDao {
 		}
 	}
 
+	/**
+	 * Lee un archivo XML que contiene información sobre grupos y alumnos, y guarda
+	 * los datos en las tablas correspondientes de la base de datos.
+	 *
+	 * @param rutaArchivo Ruta del archivo XML a procesar.
+	 * @param conexionBD  Conexión activa a la base de datos.
+	 * @return true si los datos fueron procesados e insertados correctamente, false en caso de error.
+	 */
+	
 	public static boolean leerYGuardarGruposXML(String rutaArchivo, Connection conexionBD) {
-		// TODO Auto-generated method stub
-		return false;
+	    // Validar si el archivo XML existe en la ruta especificada
+	    File archivoXML = new File(rutaArchivo);
+	    if (!archivoXML.exists()) {
+	        System.err.println("El archivo XML no existe: " + rutaArchivo);
+	        return false;
+	    }
+
+	    try {
+	        // Crear un objeto DocumentBuilder para interpretar el contenido del archivo XML
+	        DocumentBuilderFactory fabricaDocumentos = DocumentBuilderFactory.newInstance();
+	        DocumentBuilder constructorDocumentos = fabricaDocumentos.newDocumentBuilder();
+	        Document documentoXML = constructorDocumentos.parse(archivoXML);
+	        documentoXML.getDocumentElement().normalize(); // Normalizamos el documento XML
+
+	        // Obtenemos la lista de todos los elementos <grupo>
+	        NodeList listaGrupos = documentoXML.getElementsByTagName("grupo");
+
+	        // Consulta SQL para insertar grupos en la tabla 'grupos'
+	        String sqlInsertarGrupo = "INSERT INTO grupos (nombreGrupo) VALUES (?)";
+	        PreparedStatement consultaInsertarGrupo = conexionBD.prepareStatement(sqlInsertarGrupo, Statement.RETURN_GENERATED_KEYS);
+
+	        // Consulta SQL para insertar alumnos en la tabla 'alumnos'
+	        String sqlInsertarAlumno = "INSERT INTO alumnos (nombre, apellidos, genero, fechaNacimiento, curso, numeroGrupo) " +
+	                                   "VALUES (?, ?, ?, ?, ?, ?)";
+	        PreparedStatement consultaInsertarAlumno = conexionBD.prepareStatement(sqlInsertarAlumno);
+
+	        // Recorremos la lista de elementos <grupo> del XML
+	        for (int i = 0; i < listaGrupos.getLength(); i++) {
+	            Node nodoGrupo = listaGrupos.item(i);
+
+	            // Verificamos que el nodo actual sea un elemento
+	            if (nodoGrupo.getNodeType() == Node.ELEMENT_NODE) {
+	                Element elementoGrupo = (Element) nodoGrupo;
+
+	                // Extraemos el atributo 'nombreGrupo' del elemento <grupo>
+	                String nombreGrupo = elementoGrupo.getAttribute("nombreGrupo");
+
+	                // Verificamos que el atributo 'nombreGrupo' no esté vacío
+	                if (nombreGrupo != null && !nombreGrupo.trim().isEmpty()) {
+	                    // Insertamos el grupo en la base de datos
+	                    consultaInsertarGrupo.setString(1, nombreGrupo);
+	                    consultaInsertarGrupo.executeUpdate();
+
+	                    // Obtenemos el 'numeroGrupo' generado automáticamente por la base de datos
+	                    ResultSet clavesGeneradas = consultaInsertarGrupo.getGeneratedKeys();
+	                    int numeroGrupo = 0; // Inicializamos el número del grupo
+	                    if (clavesGeneradas.next()) {
+	                        numeroGrupo = clavesGeneradas.getInt(1);
+	                    }
+
+	                    // Procesar los elementos <alumno> dentro del grupo
+	                    NodeList listaAlumnos = elementoGrupo.getElementsByTagName("alumno");
+	                    for (int j = 0; j < listaAlumnos.getLength(); j++) {
+	                        Node nodoAlumno = listaAlumnos.item(j);
+
+	                        // Verificamos que el nodo actual sea un elemento
+	                        if (nodoAlumno.getNodeType() == Node.ELEMENT_NODE) {
+	                            Element elementoAlumno = (Element) nodoAlumno;
+
+	                            // Extraer los atributos del alumno
+	                            String nombreAlumno = elementoAlumno.getAttribute("nombre");
+	                            String apellidosAlumno = elementoAlumno.getAttribute("apellidos");
+	                            String generoAlumno = elementoAlumno.getAttribute("genero");
+	                            String fechaNacimientoAlumno = elementoAlumno.getAttribute("fechaNacimiento");
+	                            String cursoAlumno = elementoAlumno.getAttribute("curso");
+
+	                            // Insertar el alumno en la base de datos
+	                            consultaInsertarAlumno.setString(1, nombreAlumno);
+	                            consultaInsertarAlumno.setString(2, apellidosAlumno);
+	                            consultaInsertarAlumno.setString(3, generoAlumno);
+	                            consultaInsertarAlumno.setDate(4, java.sql.Date.valueOf(fechaNacimientoAlumno));
+	                            consultaInsertarAlumno.setString(5, cursoAlumno);
+	                            consultaInsertarAlumno.setInt(6, numeroGrupo); // Asociamos el alumno con el grupo
+	                            consultaInsertarAlumno.executeUpdate();
+
+	                            // Mensaje informativo de inserción
+	                            System.out.println("Alumno insertado: " + nombreAlumno + " " + apellidosAlumno);
+	                        }
+	                    }
+	                } else {
+	                    // Si 'nombreGrupo' está vacío, mostramos una advertencia
+	                    System.out.println("Advertencia: Nombre del grupo vacío en el XML.");
+	                }
+	            }
+	        }
+
+	        // Mensaje informativo de éxito
+	        System.out.println("Datos cargados correctamente desde el archivo XML.");
+	        return true;
+	    } catch (Exception e) {
+	        // Mostrar error en caso de que algo falle
+	        System.err.println("Error al procesar el archivo XML o insertar los datos: " + e.getMessage());
+	        e.printStackTrace();
+	        return false;
+	    }
 	}
 
 }
