@@ -16,6 +16,19 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Scanner;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+
 import modelo.Alumno;
 import modelo.Grupo;
 import pool.DatabasePool;
@@ -620,9 +633,115 @@ public class AlumnosBD implements IAlumnosDao {
 		}
 	}
 
+	/**
+	 * Guarda todos los grupos y sus alumnos en un archivo XML llamado 'grupos.xml'.
+	 * Si el archivo ya existe, solicita confirmación al usuario antes de
+	 * sobrescribirlo.
+	 * 
+	 * @param conexionBD La conexión activa a la base de datos MySQL.
+	 * @return true si el archivo se guarda correctamente, false si ocurre un error.
+	 */
+	
 	public static boolean guardarGruposEnXML(Connection conexionBD) {
-		// TODO Auto-generated method stub
-		return false;
+		// Nombre del archivo XML donde se guardarán los grupos y sus alumnos
+		String nombreArchivo = "grupos.xml";
+
+		// Verificar si el archivo ya existe y pedir confirmación al usuario para
+		// sobrescribirlo
+		File archivoXML = new File(nombreArchivo);
+		if (archivoXML.exists()) {
+			// Solicitamos al usuario si desea sobrescribir el archivo
+
+			System.out.print("El archivo " + nombreArchivo + " ya existe. ¿Deseas sobrescribirlo? (S/N): ");
+			String respuesta = sc.nextLine();
+
+			// Si la respuesta no es "s" o "S", no sobrescribimos el archivo
+			if (!respuesta.equalsIgnoreCase("s")) {
+				System.out.println("El archivo no se ha sobrescrito.");
+				return false; // Salimos del método si no se desea sobrescribir
+			}
+		}
+
+		// Inicializamos el DocumentBuilder para crear el archivo XML
+		DocumentBuilderFactory documentoFactory = DocumentBuilderFactory.newInstance();
+		try {
+			// Creamos el documento XML
+			DocumentBuilder documentoBuilder = documentoFactory.newDocumentBuilder();
+			Document documentoXML = documentoBuilder.newDocument();
+
+			// Creamos el elemento raíz <grupos>
+			Element raizElement = documentoXML.createElement("grupos");
+			documentoXML.appendChild(raizElement);
+
+			// Consulta SQL para obtener todos los grupos de la base de datos
+			String consultaGrupos = "SELECT * FROM grupos";
+			try (PreparedStatement stmtGrupos = conexionBD.prepareStatement(consultaGrupos)) {
+				ResultSet rsGrupos = stmtGrupos.executeQuery();
+
+				// Procesamos cada grupo encontrado
+				while (rsGrupos.next()) {
+					// Obtenemos los datos de cada grupo
+					int numeroGrupo = rsGrupos.getInt("numeroGrupo");
+					String nombreGrupo = rsGrupos.getString("nombreGrupo");
+
+					// Creamos el elemento <grupo> y lo añadimos al XML
+					Element grupoElement = documentoXML.createElement("grupo");
+					grupoElement.setAttribute("numeroGrupo", String.valueOf(numeroGrupo));
+					grupoElement.setAttribute("nombreGrupo", nombreGrupo);
+					raizElement.appendChild(grupoElement);
+
+					// Consulta SQL para obtener los alumnos de cada grupo
+					String consultaAlumnos = "SELECT * FROM alumnos WHERE numeroGrupo = ?";
+					try (PreparedStatement stmtAlumnos = conexionBD.prepareStatement(consultaAlumnos)) {
+						stmtAlumnos.setInt(1, numeroGrupo);
+						ResultSet rsAlumnos = stmtAlumnos.executeQuery();
+
+						// Procesamos cada alumno dentro del grupo
+						while (rsAlumnos.next()) {
+							// Obtenemos los detalles de cada alumno
+							String nia = rsAlumnos.getString("nia");
+							String nombreAlumno = rsAlumnos.getString("nombre");
+							String apellidosAlumno = rsAlumnos.getString("apellidos");
+							String genero = rsAlumnos.getString("genero");
+							String fechaNacimiento = rsAlumnos.getString("fechaNacimiento");
+							String curso = rsAlumnos.getString("curso");
+
+							// Creamos el elemento <alumno> y añadimos los atributos correspondientes
+							Element alumnoElement = documentoXML.createElement("alumno");
+							alumnoElement.setAttribute("nia", nia);
+							alumnoElement.setAttribute("nombre", nombreAlumno);
+							alumnoElement.setAttribute("apellidos", apellidosAlumno);
+							alumnoElement.setAttribute("genero", genero);
+							alumnoElement.setAttribute("fechaNacimiento", fechaNacimiento);
+							alumnoElement.setAttribute("curso", curso);
+
+							// Añadimos el alumno al grupo en el XML
+							grupoElement.appendChild(alumnoElement);
+						}
+					}
+				}
+
+				// Configuración del transformador para generar el archivo XML
+				TransformerFactory transformerFactory = TransformerFactory.newInstance();
+				Transformer transformer = transformerFactory.newTransformer();
+				transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+
+				// Creamos un archivo con el contenido XML generado
+				DOMSource source = new DOMSource(documentoXML);
+				StreamResult result = new StreamResult(new File(nombreArchivo));
+				transformer.transform(source, result);
+
+				// Mensaje de confirmación
+				System.out.println("El archivo XML se ha guardado correctamente.");
+				return true;
+			} catch (SQLException e) {
+				System.out.println("Error al consultar los grupos o los alumnos: " + e.getMessage());
+				return false;
+			}
+		} catch (ParserConfigurationException | TransformerException e) {
+			System.out.println("Error al generar el archivo XML: " + e.getMessage());
+			return false;
+		}
 	}
 
 	public static boolean leerYGuardarGruposXML(String rutaArchivo, Connection conexionBD) {
