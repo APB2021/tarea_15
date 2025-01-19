@@ -26,6 +26,8 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -33,486 +35,503 @@ import org.w3c.dom.NodeList;
 
 import modelo.Alumno;
 import modelo.Grupo;
-import pool.DatabasePool;
+import pool.PoolConexiones;
 
 public class AlumnosBD implements IAlumnosDao {
 
 	private final static Scanner sc = new Scanner(System.in);
-
-	@Override
-	public boolean insertarAlumno(Connection conexionBD, Alumno alumno) throws SQLException {
-		// Primero, obtener el numeroGrupo del grupo del alumno
-		int numeroGrupo = obtenerNumeroGrupo(alumno.getGrupo().getNombreGrupo());
-
-		if (numeroGrupo == -1) {
-			System.out.println("Error: El grupo no existe en la base de datos.");
-			return false;
-		}
-
-		String sql = "INSERT INTO alumnos (nombre, apellidos, genero, fechaNacimiento, ciclo, curso, numeroGrupo) "
-				+ "VALUES (?, ?, ?, ?, ?, ?, ?)";
-
-		try (PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
-			sentencia.setString(1, alumno.getNombre());
-			sentencia.setString(2, alumno.getApellidos());
-			sentencia.setString(3, String.valueOf(alumno.getGenero())); // Aseguramos que esté en mayúsculas
-			sentencia.setDate(4, new java.sql.Date(alumno.getFechaNacimiento().getTime()));
-			sentencia.setString(5, alumno.getCiclo());
-			sentencia.setString(6, alumno.getCurso());
-			sentencia.setInt(7, numeroGrupo); // Usar el numeroGrupo obtenido
-
-			int filasAfectadas = sentencia.executeUpdate();
-			return filasAfectadas > 0;
-		} catch (SQLException e) {
-			System.out.println("Error al insertar el alumno: " + e.getMessage());
-			return false;
-		}
-
-	}
-
-	/**
-	 * Solicita al usuario los datos necesarios para crear un objeto Alumno.
-	 * 
-	 * @return Un objeto Alumno con los datos ingresados por el usuario.
-	 */
-	public Alumno solicitarDatosAlumno() {
-		String nombre, apellidos, ciclo, curso, nombreGrupo;
-		char respuestaGenero;
-		Date fechaNacimiento = null;
-
-		System.out.println("Introduce el nombre del alumno:");
-		nombre = sc.nextLine().toUpperCase().trim();
-
-		System.out.println("Introduce los apellidos del alumno:");
-		apellidos = sc.nextLine().toUpperCase().trim();
-
-		// Validar género
-		do {
-			System.out.println("Introduce el género del alumno (M/F):");
-			respuestaGenero = sc.nextLine().toUpperCase().charAt(0); // Convertir a mayúscula
-			if (respuestaGenero != 'M' && respuestaGenero != 'F') {
-				System.out.println("Respuesta no válida. Introduce 'M' o 'F'.");
-			}
-		} while (respuestaGenero != 'M' && respuestaGenero != 'F');
-
-		// Validar fecha de nacimiento
-		do {
-			System.out.println("Introduce la fecha de nacimiento (dd-MM-aaaa):");
-			String fechaInput = sc.nextLine();
-			try {
-				SimpleDateFormat formatoFecha = new SimpleDateFormat("dd-MM-yyyy");
-				formatoFecha.setLenient(false); // Validación estricta
-				fechaNacimiento = formatoFecha.parse(fechaInput);
-			} catch (ParseException e) {
-				System.out.println("Formato de fecha inválido. Intenta de nuevo.");
-			}
-		} while (fechaNacimiento == null);
-
-		System.out.println("Introduce el ciclo del alumno:");
-		ciclo = sc.nextLine().trim().toUpperCase();
-
-		System.out.println("Introduce el curso del alumno:");
-		curso = sc.nextLine().trim().toUpperCase();
-
-		// Validar nombre del grupo
-		do {
-			System.out.println("Introduce el nombre del grupo del alumno:");
-			nombreGrupo = sc.nextLine().toUpperCase(); // Convertir a mayúsculas
-			if (!validarNombreGrupo(nombreGrupo)) {
-				System.out.println("El nombre del grupo no es válido. Intenta de nuevo.");
-			}
-		} while (!validarNombreGrupo(nombreGrupo));
-
-		// Crear el objeto Grupo
-		Grupo grupo = new Grupo(nombreGrupo);
-
-		// Crear y devolver el objeto Alumno
-		return new Alumno(nombre, apellidos, respuestaGenero, fechaNacimiento, ciclo, curso, grupo);
-	}
-
-	/**
-	 * Recupera el número del grupo a partir de su nombre.
-	 * 
-	 * @param nombreGrupo El nombre del grupo.
-	 * @return El numeroGrupo correspondiente o -1 si no existe.
-	 */
-	private int obtenerNumeroGrupo(String nombreGrupo) {
-		String sql = "SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?";
-		try (Connection conexionBD = DatabasePool.getConnection();
-				PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
-			sentencia.setString(1, nombreGrupo);
-
-			try (ResultSet resultado = sentencia.executeQuery()) {
-				if (resultado.next()) {
-					return resultado.getInt("numeroGrupo");
-				}
-			}
-		} catch (SQLException e) {
-			System.out.println("Error al obtener el numeroGrupo: " + e.getMessage());
-		}
-		return -1; // Si no se encuentra el grupo, devolver -1
-	}
-
-	/**
-	 * Valida si un nombre de grupo existe en la base de datos.
-	 * 
-	 * @param nombreGrupo El nombre del grupo a validar.
-	 * @return true si el grupo existe, false en caso contrario.
-	 */
-	public boolean validarNombreGrupo(String nombreGrupo) {
-		String sql = "SELECT * FROM grupos WHERE nombreGrupo = ?";
-		try (Connection conexionBD = DatabasePool.getConnection();
-				PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
-			sentencia.setString(1, nombreGrupo);
-			try (ResultSet resultado = sentencia.executeQuery()) {
-				return resultado.next();
-			}
-		} catch (SQLException e) {
-			System.out.println("Error al validar el grupo: " + e.getMessage());
-			return false;
-		}
-	}
-
-	/**
-	 * Muestra todos los alumnos con sus respectivos grupos.
-	 * 
-	 * @param conexionBD La conexión a la base de datos.
-	 * @return true si se muestra la lista correctamente, false en caso contrario.
-	 */
-
-	@Override
-	public boolean mostrarTodosLosAlumnos(Connection conexionBD) throws SQLException {
-
-		String sql = "SELECT a.nia, a.nombre, a.apellidos, a.genero, a.fechaNacimiento, a.ciclo, a.curso, g.nombreGrupo "
-				+ "FROM alumnos a " + "JOIN grupos g ON a.numeroGrupo = g.numeroGrupo " + "ORDER BY a.nia";
-
-		try (PreparedStatement sentencia = conexionBD.prepareStatement(sql);
-				ResultSet resultado = sentencia.executeQuery()) {
-
-			if (!resultado.next()) {
-				System.out.println("No hay alumnos registrados.");
-				return false;
-			}
-
-			// Mostrar todos los resultados
-			do {
-				int nia = resultado.getInt("nia");
-				String nombre = resultado.getString("nombre");
-				String apellidos = resultado.getString("apellidos");
-				String genero = resultado.getString("genero");
-				Date fechaNacimiento = resultado.getDate("fechaNacimiento");
-				String ciclo = resultado.getString("ciclo");
-				String curso = resultado.getString("curso");
-				String nombreGrupo = resultado.getString("nombreGrupo");
-
-				// Mostrar los datos del alumno y del grupo
-				System.out.println("NIA: " + nia);
-				System.out.println("Nombre: " + nombre);
-				System.out.println("Apellidos: " + apellidos);
-				System.out.println("Género: " + genero);
-				System.out.println("Fecha de nacimiento: " + fechaNacimiento);
-				System.out.println("Ciclo: " + ciclo);
-				System.out.println("Curso: " + curso);
-				System.out.println("Grupo: " + nombreGrupo);
-				System.out.println("-------------------------");
-
-			} while (resultado.next());
-
-			return true;
-		} catch (SQLException e) {
-			System.out.println("Error al recuperar los alumnos: " + e.getMessage());
-			return false;
-		}
-
-	}
-
-	/**
-	 * Guarda todos los alumnos en un fichero de texto. La información de los
-	 * alumnos, incluyendo el grupo al que pertenecen, se obtiene desde la base de
-	 * datos y luego se escribe en un archivo de texto.
-	 * 
-	 * @param conexionBD Conexión a la base de datos MySQL.
-	 */
-
-	@Override
-	public void guardarAlumnosEnFicheroTexto(Connection conexionBD) throws SQLException {
-		// Definir el nombre del fichero de texto donde se guardarán los alumnos
-		File fichero = new File("alumnos.txt");
-
-		// Comprobamos si el fichero ya existe. Si es así, preguntamos al usuario si
-		// desea sobreescribirlo
-		if (fichero.exists()) {
-			System.out.print("El fichero ya existe. ¿Desea sobreescribirlo? (S/N): ");
-			char respuesta = sc.nextLine().charAt(0);
-			if (respuesta != 'S' && respuesta != 's') {
-				System.out.println("Operación cancelada. El fichero no se sobrescribirá.");
-				return;
-			}
-		}
-
-		// Preparamos el flujo de salida para escribir en el fichero de texto
-		// Utilizamos un BufferedWriter para escribir en el fichero de texto.
-		// Lo creamos con un FileWriter que apunta al fichero alumnos.txt.
-		try (BufferedWriter writer = new BufferedWriter(new FileWriter(fichero))) {
-
-			// Preparamos la consulta SQL para obtener los datos de los alumnos y sus
-			// grupos:
-
-			/*
-			 * Explicación de la consulta SQL:
-			 * 
-			 * SELECT: Indica que queremos obtener datos de la base de datos.
-			 * 
-			 * a.nia, a.nombre, a.apellidos, a.genero, a.fechaNacimiento, a.ciclo, a.curso:
-			 * Son los campos que seleccionamos de la tabla alumnos.
-			 * 
-			 * El prefijo a es un alias para la tabla alumnos. g.nombreGrupo: Este es el
-			 * nombre del grupo, que proviene de la tabla grupos.
-			 * 
-			 * El prefijo g es un alias para la tabla grupos.
-			 * 
-			 * Esta parte indica que vamos a trabajar con la tabla alumnos, que hemos
-			 * abreviado como a para simplificar la consulta.
-			 * 
-			 * JOIN grupos g ON a.numeroGrupo = g.numeroGrupo:
-			 * 
-			 * JOIN: Es la palabra clave que indica que queremos combinar datos de dos
-			 * tablas.
-			 * 
-			 * En este caso, estamos combinando alumnos con grupos.
-			 * 
-			 * a.numeroGrupo = g.numeroGrupo: La condición de la unión.
-			 * 
-			 * Queremos que se combinen los registros de alumnos y grupos cuando el valor de
-			 * numeroGrupo en la tabla alumnos coincida con el valor de numeroGrupo en la
-			 * tabla grupos.
-			 * 
-			 * ¿Por qué usamos JOIN?
-			 * 
-			 * Usamos un JOIN para obtener información de dos tablas relacionadas. En este
-			 * caso, un alumno pertenece a un grupo, y para obtener el nombre del grupo,
-			 * necesitamos combinar las tablas alumnos y grupos.
-			 */
-			String sql = "SELECT a.nia, a.nombre, a.apellidos, a.genero, a.fechaNacimiento, a.ciclo, a.curso, g.nombreGrupo "
-					+ "FROM alumnos a " + "JOIN grupos g ON a.numeroGrupo = g.numeroGrupo";
-
-			// Ejecutamos la consulta SQL
-			try (PreparedStatement sentencia = conexionBD.prepareStatement(sql);
-					ResultSet resultado = sentencia.executeQuery()) {
-
-				// Escribimos los encabezados de las columnas en el fichero
-				writer.write("NIA,Nombre,Apellidos,Género,Fecha Nacimiento,Ciclo,Curso,Nombre del Grupo");
-				writer.newLine();
-
-				// Recorremos los resultados de la consulta SQL
-				while (resultado.next()) {
-					// Recuperamos los datos de cada columna del resultado de la consulta
-					int nia = resultado.getInt("nia");
-					String nombre = resultado.getString("nombre");
-					String apellidos = resultado.getString("apellidos");
-					String genero = resultado.getString("genero");
-					String fechaNacimiento = resultado.getString("fechaNacimiento");
-					String ciclo = resultado.getString("ciclo");
-					String curso = resultado.getString("curso");
-					String nombreGrupo = resultado.getString("nombreGrupo");
-
-					// Escribimos los datos de cada alumno en el fichero de texto
-					writer.write(nia + "," + nombre + "," + apellidos + "," + genero + "," + fechaNacimiento + ","
-							+ ciclo + "," + curso + "," + nombreGrupo);
-					writer.newLine();
-				}
-
-				System.out.println("Datos de los alumnos guardados correctamente en el fichero 'alumnos.txt'.");
-			} catch (SQLException e) {
-				System.out.println("Error al ejecutar la consulta SQL: " + e.getMessage());
-			}
-
-		} catch (IOException e) {
-			System.out.println("Error al escribir en el fichero: " + e.getMessage());
-		}
-
-	}
-
-	/**
-	 * Lee los alumnos desde el fichero de texto 'alumnos.txt' y los inserta en la
-	 * base de datos. El formato del fichero debe ser:
-	 * NIA,Nombre,Apellidos,Género,Fecha Nacimiento,Ciclo,Curso,Nombre del Grupo
-	 *
-	 * @param conexionBD Conexión a la base de datos MySQL
-	 * @return true si todos los alumnos fueron insertados correctamente, false si
-	 *         ocurrió algún error
-	 */
-
-	@Override
-	public boolean leerAlumnosDeFicheroTexto(Connection conexionBD) throws SQLException {
-		String fichero = "alumnos.txt";
-		try (BufferedReader br = new BufferedReader(new FileReader(fichero))) {
-			String linea;
-			int lineasInsertadas = 0;
-
-			// Ignoramos la primera línea (cabecera)
-			br.readLine();
-
-			// Leemos cada línea del archivo
-			while ((linea = br.readLine()) != null) {
-				System.out.println("Leyendo línea: " + linea); // Depuración, muestra la línea leída
-
-				// Separamos los campos por coma
-				String[] datos = linea.split(",");
-
-				// Verificamos que la línea tenga 8 campos (porque el NIA está incluido)
-				if (datos.length == 8) {
-					// Extraemos los datos de cada campo, ignorando el primer campo (NIA)
-					String nombre = datos[1]; // Nombre
-					String apellidos = datos[2]; // Apellidos
-					char genero = datos[3].charAt(0); // Género (primer carácter)
-					String fechaNacimiento = datos[4]; // Fecha Nacimiento
-					String ciclo = datos[5]; // Ciclo
-					String curso = datos[6]; // Curso
-					String grupo = datos[7]; // Nombre del Grupo
-
-					// Imprimir los datos extraídos
-					System.out.println("Datos extraídos: ");
-					System.out.println("Nombre: " + nombre);
-					System.out.println("Apellidos: " + apellidos);
-					System.out.println("Género: " + genero);
-					System.out.println("Fecha Nacimiento: " + fechaNacimiento);
-					System.out.println("Ciclo: " + ciclo);
-					System.out.println("Curso: " + curso);
-					System.out.println("Grupo: " + grupo);
-
-					// Convertimos la fecha
-					SimpleDateFormat formatoFecha = new SimpleDateFormat("yyyy-MM-dd");
-					Date fechaUtil = null;
-
-					try {
-						fechaUtil = formatoFecha.parse(fechaNacimiento);
-						System.out.println("Fecha convertida: " + fechaUtil);
-					} catch (ParseException e) {
-						System.out.println("Error al convertir la fecha: " + fechaNacimiento);
-						continue; // Salta a la siguiente línea si la fecha es inválida
-					}
-
-					// Obtenemos el número del grupo correspondiente al nombre del grupo
-					int numeroGrupo = obtenerNumeroGrupoPorNombre(conexionBD, grupo);
-
-					if (numeroGrupo != -1) {
-						// Creamos el objeto Grupo
-						Grupo grupoObj = new Grupo(numeroGrupo, grupo);
-
-						// Creamos un objeto Alumno
-						Alumno alumno = new Alumno();
-						alumno.setNombre(nombre);
-						alumno.setApellidos(apellidos);
-						alumno.setGenero(genero);
-						alumno.setFechaNacimiento(fechaUtil);
-						alumno.setCiclo(ciclo);
-						alumno.setCurso(curso);
-						alumno.setGrupo(grupoObj); // Asignamos el objeto Grupo
-
-						// Insertamos el alumno en la base de datos
-						insertarAlumno(conexionBD, alumno);
-						lineasInsertadas++;
-						System.out.println("Alumno insertado: " + nombre + " " + apellidos);
-					} else {
-						System.out.println("El grupo '" + grupo + "' no existe en la base de datos. Alumno ignorado.");
-					}
-				} else {
-					System.out.println("Línea inválida en el fichero (número de campos incorrecto): " + linea); // Si
-																												// los
-																												// campos
-																												// no
-																												// son
-																												// correctos
-				}
-			}
-
-			if (lineasInsertadas > 0) {
-				System.out.println("Alumnos leídos e insertados correctamente desde el fichero 'alumnos.txt'.");
-				return true; // Todos los alumnos fueron insertados
-			} else {
-				System.out.println("No se insertaron alumnos.");
-				return false;
-			}
-		} catch (IOException e) {
-			System.out.println("Ocurrió un error al leer el archivo: " + e.getMessage());
-			return false;
-		}
-	}
 	
-	/**
-	 * Obtiene el número del grupo a partir del nombre del grupo.
-	 *
-	 * @param conexionBD  Conexión a la base de datos
-	 * @param nombreGrupo Nombre del grupo
-	 * @return El número del grupo, o -1 si no se encuentra el grupo
-	 */
-	private int obtenerNumeroGrupoPorNombre(Connection conexionBD, String nombreGrupo) {
-		String sql = "SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?";
-		try (PreparedStatement stmt = conexionBD.prepareStatement(sql)) {
-			stmt.setString(1, nombreGrupo);
-			ResultSet rs = stmt.executeQuery();
-			if (rs.next()) {
-				return rs.getInt("numeroGrupo");
-			}
-		} catch (SQLException e) {
-			System.out.println("Error al obtener el número de grupo: " + e.getMessage());
-		}
-		return -1; // Si no se encuentra el grupo, devolvemos -1
-	}
+	private static final Logger loggerGeneral = LogManager.getRootLogger();
+    private static final Logger loggerExcepciones = LogManager.getLogger("exceptions");
+
+    @Override
+    public boolean insertarAlumno(Connection conexionBD, Alumno alumno) throws SQLException {
+        // Primero, obtener el numeroGrupo del grupo del alumno
+        int numeroGrupo = obtenerNumeroGrupo(alumno.getGrupo().getNombreGrupo());
+
+        if (numeroGrupo == -1) {
+            loggerExcepciones.error("Error: El grupo '{}' no existe en la base de datos.", alumno.getGrupo().getNombreGrupo());
+            return false;
+        }
+
+        String sql = "INSERT INTO alumnos (nombre, apellidos, genero, fechaNacimiento, ciclo, curso, numeroGrupo) "
+                   + "VALUES (?, ?, ?, ?, ?, ?, ?)";
+
+        try (PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
+            sentencia.setString(1, alumno.getNombre());
+            sentencia.setString(2, alumno.getApellidos());
+            sentencia.setString(3, String.valueOf(alumno.getGenero())); // Aseguramos que esté en mayúsculas
+            sentencia.setDate(4, new java.sql.Date(alumno.getFechaNacimiento().getTime()));
+            sentencia.setString(5, alumno.getCiclo());
+            sentencia.setString(6, alumno.getCurso());
+            sentencia.setInt(7, numeroGrupo); // Usar el numeroGrupo obtenido
+
+            int filasAfectadas = sentencia.executeUpdate();
+
+            if (filasAfectadas > 0) {
+                loggerGeneral.info("Alumno '{}' '{}' insertado correctamente.", alumno.getNombre(), alumno.getApellidos());
+                return true;
+            } else {
+                loggerExcepciones.error("No se pudo insertar el alumno '{}' '{}'.", alumno.getNombre(), alumno.getApellidos());
+                return false;
+            }
+        } catch (SQLException e) {
+            loggerExcepciones.error("Error al insertar el alumno '{}' '{}': {}", 
+                                    alumno.getNombre(), alumno.getApellidos(), e.getMessage(), e);
+            throw e; // Re-lanzamos la excepción para que la gestione el llamador
+        }
+    }
+
+    /**
+     * Solicita al usuario los datos necesarios para crear un objeto Alumno.
+     * 
+     * @return Un objeto Alumno con los datos ingresados por el usuario.
+     */
+    @Override
+    public Alumno solicitarDatosAlumno() {
+        String nombre, apellidos, ciclo, curso, nombreGrupo;
+        char respuestaGenero;
+        Date fechaNacimiento = null;
+
+        try {
+            System.out.println("Introduce el nombre del alumno:");
+            nombre = sc.nextLine().toUpperCase().trim();
+
+            System.out.println("Introduce los apellidos del alumno:");
+            apellidos = sc.nextLine().toUpperCase().trim();
+
+            // Validar género
+            do {
+                System.out.println("Introduce el género del alumno (M/F):");
+                respuestaGenero = sc.nextLine().toUpperCase().charAt(0); // Convertir a mayúscula
+                if (respuestaGenero != 'M' && respuestaGenero != 'F') {
+                    loggerGeneral.info("Entrada no válida para género: {}", respuestaGenero);
+                    System.out.println("Respuesta no válida. Introduce 'M' o 'F'.");
+                }
+            } while (respuestaGenero != 'M' && respuestaGenero != 'F');
+
+            // Validar fecha de nacimiento
+            do {
+                System.out.println("Introduce la fecha de nacimiento (dd-MM-aaaa):");
+                String fechaInput = sc.nextLine();
+                try {
+                    SimpleDateFormat formatoFecha = new SimpleDateFormat("dd-MM-yyyy");
+                    formatoFecha.setLenient(false); // Validación estricta
+                    fechaNacimiento = formatoFecha.parse(fechaInput);
+                } catch (ParseException e) {
+                    loggerExcepciones.error("Formato de fecha inválido ingresado: {}", e.getMessage());
+                    System.out.println("Formato de fecha inválido. Intenta de nuevo.");
+                }
+            } while (fechaNacimiento == null);
+
+            System.out.println("Introduce el ciclo del alumno:");
+            ciclo = sc.nextLine().trim().toUpperCase();
+
+            System.out.println("Introduce el curso del alumno:");
+            curso = sc.nextLine().trim().toUpperCase();
+
+            // Validar nombre del grupo
+            do {
+                System.out.println("Introduce el nombre del grupo del alumno:");
+                nombreGrupo = sc.nextLine().toUpperCase(); // Convertir a mayúsculas
+                if (!validarNombreGrupo(nombreGrupo)) {
+                    loggerGeneral.info("Entrada no válida para grupo: {}", nombreGrupo);
+                    System.out.println("El nombre del grupo no es válido. Intenta de nuevo.");
+                }
+            } while (!validarNombreGrupo(nombreGrupo));
+
+            // Crear el objeto Grupo
+            Grupo grupo = new Grupo(nombreGrupo);
+
+            // Crear y devolver el objeto Alumno
+            Alumno alumno = new Alumno(nombre, apellidos, respuestaGenero, fechaNacimiento, ciclo, curso, grupo);
+            loggerGeneral.info("Datos del alumno solicitados correctamente: {}", alumno);
+            return alumno;
+
+        } catch (Exception e) {
+            loggerExcepciones.error("Error inesperado al solicitar datos del alumno: {}", e.getMessage(), e);
+            throw new RuntimeException("Error al solicitar datos del alumno.", e);
+        }
+    }
+
+    /**
+     * Recupera el número del grupo a partir de su nombre.
+     * 
+     * @param nombreGrupo El nombre del grupo.
+     * @return El numeroGrupo correspondiente o -1 si no existe.
+     */
+    private int obtenerNumeroGrupo(String nombreGrupo) {
+        String sql = "SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?";
+        try (Connection conexionBD = PoolConexiones.getConnection();
+             PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
+            
+            sentencia.setString(1, nombreGrupo);
+            loggerGeneral.info("Consultando numeroGrupo para el grupo: {}", nombreGrupo);
+
+            try (ResultSet resultado = sentencia.executeQuery()) {
+                if (resultado.next()) {
+                    int numeroGrupo = resultado.getInt("numeroGrupo");
+                    loggerGeneral.info("Grupo encontrado: {} con numeroGrupo: {}", nombreGrupo, numeroGrupo);
+                    return numeroGrupo;
+                } else {
+                    loggerGeneral.info("No se encontró el grupo con nombre: {}", nombreGrupo);
+                }
+            }
+        } catch (SQLException e) {
+            loggerExcepciones.error("Error al obtener el numeroGrupo para el grupo {}: {}", nombreGrupo, e.getMessage(), e);
+        }
+
+        return -1; // Si no se encuentra el grupo, devolver -1
+    }
+
+    /**
+     * Valida si un nombre de grupo existe en la base de datos.
+     * 
+     * @param nombreGrupo El nombre del grupo a validar.
+     * @return true si el grupo existe, false en caso contrario.
+     */
+    public boolean validarNombreGrupo(String nombreGrupo) {
+        // Rendimiento mejorado: Uso de SELECT 1 reduce la carga en la base de datos.
+    	String sql = "SELECT 1 FROM grupos WHERE nombreGrupo = ?";
+        try (Connection conexionBD = PoolConexiones.getConnection();
+             PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
+
+            sentencia.setString(1, nombreGrupo);
+            loggerGeneral.info("Validando existencia del grupo: {}", nombreGrupo);
+
+            try (ResultSet resultado = sentencia.executeQuery()) {
+                if (resultado.next()) {
+                    loggerGeneral.info("El grupo '{}' existe en la base de datos.", nombreGrupo);
+                    return true;
+                } else {
+                    loggerGeneral.info("El grupo '{}' no existe en la base de datos.", nombreGrupo);
+                    return false;
+                }
+            }
+        } catch (SQLException e) {
+            loggerExcepciones.error("Error al validar el grupo '{}': {}", nombreGrupo, e.getMessage(), e);
+            return false;
+        }
+    }
+
+
+    /**
+     * Muestra todos los alumnos con sus respectivos grupos.
+     * 
+     * @param conexionBD La conexión a la base de datos.
+     * @return true si se muestra la lista correctamente, false en caso contrario.
+     */
+    @Override
+    public boolean mostrarTodosLosAlumnos(Connection conexionBD) {
+        String sql = """
+            SELECT a.nia, a.nombre, a.apellidos, a.genero, a.fechaNacimiento, 
+                   a.ciclo, a.curso, g.nombreGrupo
+            FROM alumnos a
+            JOIN grupos g ON a.numeroGrupo = g.numeroGrupo
+            ORDER BY a.nia
+        """;
+
+        try (PreparedStatement sentencia = conexionBD.prepareStatement(sql);
+             ResultSet resultado = sentencia.executeQuery()) {
+
+            if (!resultado.isBeforeFirst()) {
+                System.out.println("No hay alumnos registrados.");
+                loggerGeneral.info("La consulta de alumnos no devolvió resultados.");
+                return false;
+            }
+
+            System.out.println("Lista de alumnos registrados:");
+            loggerGeneral.info("Mostrando la lista de alumnos registrados.");
+
+            while (resultado.next()) {
+                int nia = resultado.getInt("nia");
+                String nombre = resultado.getString("nombre");
+                String apellidos = resultado.getString("apellidos");
+                String genero = resultado.getString("genero");
+                Date fechaNacimiento = resultado.getDate("fechaNacimiento");
+                String ciclo = resultado.getString("ciclo");
+                String curso = resultado.getString("curso");
+                String nombreGrupo = resultado.getString("nombreGrupo");
+
+                // Mostrar los datos del alumno y del grupo
+                System.out.printf("""
+                    NIA: %d
+                    Nombre: %s
+                    Apellidos: %s
+                    Género: %s
+                    Fecha de nacimiento: %s
+                    Ciclo: %s
+                    Curso: %s
+                    Grupo: %s
+                    -------------------------
+                    """,
+                    nia, nombre, apellidos, genero, fechaNacimiento, ciclo, curso, nombreGrupo);
+            }
+            return true;
+        } catch (SQLException e) {
+            loggerExcepciones.error("Error al recuperar la lista de alumnos: {}", e.getMessage(), e);
+            System.out.println("Se produjo un error al recuperar los alumnos. Revisa los logs para más detalles.");
+            return false;
+        }
+    }
+
+    /**
+     * Guarda todos los alumnos en un fichero de texto. 
+     * La información incluye sus datos y el grupo al que pertenecen.
+     * 
+     * @param conexionBD Conexión a la base de datos MySQL.
+     */
+    @Override
+    public void guardarAlumnosEnFicheroTexto(Connection conexionBD) {
+        String nombreFichero = "alumnos.txt";
+        File fichero = new File(nombreFichero);
+
+        // Verificar si el archivo existe y pedir confirmación para sobreescribirlo
+        if (fichero.exists()) {
+            System.out.print("El fichero ya existe. ¿Desea sobreescribirlo? (S/N): ");
+            char respuesta = sc.nextLine().toUpperCase().charAt(0);
+            if (respuesta != 'S') {
+                System.out.println("Operación cancelada. El fichero no se sobrescribirá.");
+                loggerGeneral.info("El usuario decidió no sobrescribir el fichero '{}'.", nombreFichero);
+                return;
+            }
+        }
+
+        String sql = """
+            SELECT a.nia, a.nombre, a.apellidos, a.genero, 
+                   a.fechaNacimiento, a.ciclo, a.curso, g.nombreGrupo
+            FROM alumnos a
+            JOIN grupos g ON a.numeroGrupo = g.numeroGrupo
+        """;
+
+        // Intentar escribir en el fichero
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(fichero));
+             PreparedStatement sentencia = conexionBD.prepareStatement(sql);
+             ResultSet resultado = sentencia.executeQuery()) {
+
+            // Escribir encabezados en el fichero
+            writer.write("NIA,Nombre,Apellidos,Género,Fecha Nacimiento,Ciclo,Curso,Nombre del Grupo");
+            writer.newLine();
+
+            if (!resultado.isBeforeFirst()) {
+                System.out.println("No hay alumnos registrados para guardar en el fichero.");
+                loggerGeneral.info("No se encontraron alumnos en la base de datos para guardar en el fichero.");
+                return;
+            }
+
+            // Escribir los datos de los alumnos en el fichero
+            while (resultado.next()) {
+                int nia = resultado.getInt("nia");
+                String nombre = resultado.getString("nombre");
+                String apellidos = resultado.getString("apellidos");
+                String genero = resultado.getString("genero");
+                String fechaNacimiento = resultado.getString("fechaNacimiento");
+                String ciclo = resultado.getString("ciclo");
+                String curso = resultado.getString("curso");
+                String nombreGrupo = resultado.getString("nombreGrupo");
+
+                // Escribir cada fila de datos
+                writer.write(String.format("%d,%s,%s,%s,%s,%s,%s,%s",
+                    nia, nombre, apellidos, genero, fechaNacimiento, ciclo, curso, nombreGrupo));
+                writer.newLine();
+            }
+
+            System.out.println("Datos de los alumnos guardados correctamente en el fichero 'alumnos.txt'.");
+            loggerGeneral.info("Los datos de los alumnos se guardaron correctamente en el fichero '{}'.", nombreFichero);
+
+        } catch (SQLException e) {
+            loggerExcepciones.error("Error al ejecutar la consulta SQL: {}", e.getMessage(), e);
+            System.out.println("Se produjo un error al recuperar los datos. Revisa los logs para más detalles.");
+        } catch (IOException e) {
+            loggerExcepciones.error("Error al escribir en el fichero '{}': {}", nombreFichero, e.getMessage(), e);
+            System.out.println("Se produjo un error al escribir en el fichero. Revisa los logs para más detalles.");
+        }
+    }
+
+
+    /**
+     * Lee los alumnos desde el fichero de texto 'alumnos.txt' y los inserta en la base de datos.
+     * El formato del fichero debe ser: NIA,Nombre,Apellidos,Género,Fecha Nacimiento,Ciclo,Curso,Nombre del Grupo
+     *
+     * @param conexionBD Conexión a la base de datos MySQL.
+     * @return true si todos los alumnos fueron insertados correctamente, false si ocurrió algún error.
+     */
+    @Override
+    public boolean leerAlumnosDeFicheroTexto(Connection conexionBD) {
+        String fichero = "alumnos.txt";
+        int lineasInsertadas = 0;
+
+        try (BufferedReader br = new BufferedReader(new FileReader(fichero))) {
+            String linea;
+
+            // Ignorar la primera línea (cabecera)
+            br.readLine();
+
+            while ((linea = br.readLine()) != null) {
+                loggerGeneral.info("Leyendo línea: {}", linea);
+
+                // Separamos los campos por coma
+                String[] datos = linea.split(",");
+
+                // Verificamos que la línea tenga 8 campos
+                if (datos.length == 8) {
+                    try {
+                        String nombre = datos[1]; // Nombre
+                        String apellidos = datos[2]; // Apellidos
+                        char genero = datos[3].charAt(0); // Género (primer carácter)
+                        String fechaNacimiento = datos[4]; // Fecha Nacimiento
+                        String ciclo = datos[5]; // Ciclo
+                        String curso = datos[6]; // Curso
+                        String grupo = datos[7]; // Nombre del Grupo
+
+                        // Conversión de la fecha
+                        SimpleDateFormat formatoFecha = new SimpleDateFormat("dd-MM-yyyy");
+                        Date fechaUtil = formatoFecha.parse(fechaNacimiento);
+                        loggerGeneral.info("Fecha convertida: {}", fechaUtil);
+
+                        // Obtener el número del grupo por nombre
+                        int numeroGrupo = obtenerNumeroGrupoPorNombre(conexionBD, grupo);
+
+                        if (numeroGrupo != -1) {
+                            Grupo grupoObj = new Grupo(numeroGrupo, grupo);
+                            Alumno alumno = new Alumno();
+                            alumno.setNombre(nombre);
+                            alumno.setApellidos(apellidos);
+                            alumno.setGenero(genero);
+                            alumno.setFechaNacimiento(fechaUtil);
+                            alumno.setCiclo(ciclo);
+                            alumno.setCurso(curso);
+                            alumno.setGrupo(grupoObj);
+
+                            // Insertar el alumno en la base de datos
+                            insertarAlumno(conexionBD, alumno);
+                            lineasInsertadas++;
+                            loggerGeneral.info("Alumno insertado: {} {}", nombre, apellidos);
+                        } else {
+                            loggerGeneral.warn("El grupo '{}' no existe en la base de datos. Alumno ignorado.", grupo);
+                        }
+                    } catch (ParseException e) {
+                        loggerExcepciones.error("Error al convertir la fecha: {}", datos[4], e);
+                        System.out.println("Error al convertir la fecha: " + datos[4]);
+                    }
+                } else {
+                    loggerGeneral.warn("Línea inválida en el fichero (número de campos incorrecto): {}", linea);
+                }
+            }
+
+            if (lineasInsertadas > 0) {
+                System.out.println("Alumnos leídos e insertados correctamente desde el fichero 'alumnos.txt'.");
+                loggerGeneral.info("Alumnos leídos e insertados correctamente.");
+                return true; // Todos los alumnos fueron insertados correctamente
+            } else {
+                System.out.println("No se insertaron alumnos.");
+                loggerGeneral.info("No se insertaron alumnos.");
+                return false;
+            }
+        } catch (IOException e) {
+            loggerExcepciones.error("Ocurrió un error al leer el archivo '{}': {}", fichero, e.getMessage(), e);
+            System.out.println("Ocurrió un error al leer el archivo: " + e.getMessage());
+            return false;
+        } catch (SQLException e) {
+            loggerExcepciones.error("Error en la base de datos al insertar alumno: {}", e.getMessage(), e);
+            System.out.println("Error en la base de datos al insertar alumno.");
+            return false;
+        }
+    }
+
 	
-	/**
-	 * Modifica el nombre de un alumno en la base de datos basado en su NIA.
-	 * 
-	 * @param conexion    conexión a la base de datos
-	 * @param nia         NIA del alumno
-	 * @param nuevoNombre nuevo nombre del alumno
-	 * @return true si la modificación fue exitosa; false en caso contrario
-	 */
+    /**
+     * Obtiene el número del grupo a partir del nombre del grupo.
+     *
+     * @param conexionBD  Conexión a la base de datos.
+     * @param nombreGrupo Nombre del grupo.
+     * @return El número del grupo, o -1 si no se encuentra el grupo.
+     */
+    private int obtenerNumeroGrupoPorNombre(Connection conexionBD, String nombreGrupo) {
+        String sql = "SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?";
+        try (PreparedStatement stmt = conexionBD.prepareStatement(sql)) {
+            stmt.setString(1, nombreGrupo);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    int numeroGrupo = rs.getInt("numeroGrupo");
+                    loggerGeneral.info("Grupo encontrado: {}", numeroGrupo);
+                    return numeroGrupo;
+                } else {
+                    loggerGeneral.warn("No se encontró el grupo: {}", nombreGrupo);
+                    return -1; // Si no se encuentra el grupo
+                }
+            }
+        } catch (SQLException e) {
+            loggerExcepciones.error("Error al obtener el número de grupo: {}", e.getMessage(), e);
+            System.out.println("Error al obtener el número de grupo: " + e.getMessage());
+            return -1; // Devolver -1 en caso de error
+        }
+    }
 
-	@Override
-	public boolean modificarNombreAlumnoPorNia(Connection conexion, int nia, String nuevoNombre) throws SQLException {
-		String sql = "UPDATE alumnos SET nombre = ? WHERE nia = ?";
-		try (PreparedStatement sentencia = conexion.prepareStatement(sql)) {
-			// Establecer los valores
-			sentencia.setString(1, nuevoNombre);
-			sentencia.setInt(2, nia);
-
-			// Ejecutar la actualización
-			int filasActualizadas = sentencia.executeUpdate();
-			return filasActualizadas > 0; // Devolver true si se actualizó al menos una fila
-		} catch (Exception e) {
-			System.out.println("Error al modificar el nombre del alumno: " + e.getMessage());
-			return false;
-		}
-
-	}
-
-	/**
-	 * Elimina un alumno de la base de datos a partir de su NIA.
-	 * 
-	 * @param conexionBD la conexión a la base de datos
-	 * @param nia        el NIA del alumno a eliminar
-	 * @return true si el alumno fue eliminado correctamente, false en caso
-	 *         contrario
-	 */
 	
-	@Override
-	public boolean eliminarAlumnoPorNIA(Connection conexionBD, int nia) throws SQLException {
-		String sql = "DELETE FROM alumnos WHERE nia = ?";
+    /**
+     * Modifica el nombre de un alumno en la base de datos basado en su NIA.
+     * 
+     * @param conexion    conexión a la base de datos.
+     * @param nia         NIA del alumno.
+     * @param nuevoNombre nuevo nombre del alumno.
+     * @return true si la modificación fue exitosa; false en caso contrario.
+     */
+    @Override
+    public boolean modificarNombreAlumnoPorNia(Connection conexion, int nia, String nuevoNombre) {
+        String sql = "UPDATE alumnos SET nombre = ? WHERE nia = ?";
+        try (PreparedStatement sentencia = conexion.prepareStatement(sql)) {
+            // Establecer los valores
+            sentencia.setString(1, nuevoNombre);
+            sentencia.setInt(2, nia);
 
-		try (PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
-			sentencia.setInt(1, nia);
+            // Ejecutar la actualización
+            int filasActualizadas = sentencia.executeUpdate();
+            
+            if (filasActualizadas > 0) {
+                loggerGeneral.info("Nombre del alumno con NIA {} modificado exitosamente a '{}'", nia, nuevoNombre);
+                return true;
+            } else {
+                loggerGeneral.warn("No se encontró un alumno con NIA {} para modificar el nombre", nia);
+                return false;
+            }
+        } catch (SQLException e) {
+            loggerExcepciones.error("Error al modificar el nombre del alumno con NIA {}: {}", nia, e.getMessage(), e);
+            System.out.println("Error al modificar el nombre del alumno: " + e.getMessage());
+            return false;
+        }
+    }
 
-			// Ejecutar la consulta
-			int filasAfectadas = sentencia.executeUpdate();
-			return filasAfectadas > 0; // Devuelve true si al menos una fila fue eliminada
-		} catch (SQLException e) {
-			System.out.println("Error al eliminar el alumno: " + e.getMessage());
-			return false;
-		}
+    /**
+     * Elimina un alumno de la base de datos a partir de su NIA.
+     * 
+     * @param conexionBD la conexión a la base de datos.
+     * @param nia        el NIA del alumno a eliminar.
+     * @return true si el alumno fue eliminado correctamente, false en caso contrario.
+     */
+    @Override
+    public boolean eliminarAlumnoPorNIA(Connection conexionBD, int nia) {
+        String sql = "DELETE FROM alumnos WHERE nia = ?";
 
-	}
+        try (PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
+            sentencia.setInt(1, nia);
+
+            // Ejecutar la consulta
+            int filasAfectadas = sentencia.executeUpdate();
+            
+            if (filasAfectadas > 0) {
+                loggerGeneral.info("Alumno con NIA {} eliminado exitosamente", nia);
+                return true;
+            } else {
+                loggerGeneral.warn("No se encontró un alumno con NIA {} para eliminar", nia);
+                return false;
+            }
+        } catch (SQLException e) {
+            loggerExcepciones.error("Error al eliminar el alumno con NIA {}: {}", nia, e.getMessage(), e);
+            System.out.println("Error al eliminar el alumno: " + e.getMessage());
+            return false;
+        }
+    }
 
 	@Override
 	public boolean eliminarAlumnosPorApellidos(Connection conexionBD, String apellidos) throws SQLException {
@@ -539,20 +558,29 @@ public class AlumnosBD implements IAlumnosDao {
 	 * @param grupo      El objeto Grupo que se desea insertar.
 	 * @return true si la inserción fue exitosa, false en caso contrario.
 	 */
-
 	@Override
-	public boolean insertarGrupo(Connection conexionBD, Grupo grupo) throws SQLException {
-		String sql = "INSERT INTO grupos (nombreGrupo) VALUES (?)";
+	public boolean insertarGrupo(Connection conexionBD, Grupo grupo) {
+	    String sql = "INSERT INTO grupos (nombreGrupo) VALUES (?)";
 
-		try (PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
-			sentencia.setString(1, grupo.getNombreGrupo().toUpperCase()); // Convertir nombre a mayúsculas
+	    try (PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
+	        // Convertir el nombre del grupo a mayúsculas antes de insertar
+	        String nombreGrupo = grupo.getNombreGrupo().toUpperCase();
+	        sentencia.setString(1, nombreGrupo);
 
-			int filasAfectadas = sentencia.executeUpdate();
-			return filasAfectadas > 0;
-		} catch (SQLException e) {
-			System.out.println("Error al insertar el grupo: " + e.getMessage());
-			return false;
-		}
+	        int filasAfectadas = sentencia.executeUpdate();
+	        
+	        if (filasAfectadas > 0) {
+	            loggerGeneral.info("Grupo '{}' insertado exitosamente", nombreGrupo);
+	            return true;
+	        } else {
+	            loggerGeneral.warn("No se pudo insertar el grupo '{}'", nombreGrupo);
+	            return false;
+	        }
+	    } catch (SQLException e) {
+	        loggerExcepciones.error("Error al insertar el grupo '{}': {}", grupo.getNombreGrupo(), e.getMessage(), e);
+	        System.out.println("Error al insertar el grupo: " + e.getMessage());
+	        return false;
+	    }
 	}
 
 	/**
@@ -562,42 +590,48 @@ public class AlumnosBD implements IAlumnosDao {
 	 * @param nombreGrupo el nombre del grupo cuyos alumnos serán eliminados.
 	 * @return true si se eliminaron correctamente, false si ocurrió un error.
 	 */
-	
 	@Override
-	public boolean eliminarAlumnosPorGrupo(Connection conexionBD, String nombreGrupo) throws SQLException {
-		// Verificamos si el grupo tiene alumnos antes de intentar eliminar
-		String comprobarAlumnosSql = "SELECT COUNT(*) FROM alumnos WHERE numeroGrupo = (SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?)";
+	public boolean eliminarAlumnosPorGrupo(Connection conexionBD, String nombreGrupo) {
+	    // Consulta para verificar si el grupo tiene alumnos antes de intentar eliminarlos
+	    String comprobarAlumnosSql = "SELECT COUNT(*) FROM alumnos WHERE numeroGrupo = (SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?)";
 
-		try (PreparedStatement comprobarAlumnosSentencia = conexionBD.prepareStatement(comprobarAlumnosSql)) {
-			comprobarAlumnosSentencia.setString(1, nombreGrupo);
+	    try (PreparedStatement comprobarAlumnosSentencia = conexionBD.prepareStatement(comprobarAlumnosSql)) {
+	        comprobarAlumnosSentencia.setString(1, nombreGrupo);
 
-			ResultSet resultado = comprobarAlumnosSentencia.executeQuery();
-			if (resultado.next()) {
-				int cantidadAlumnos = resultado.getInt(1);
+	        ResultSet resultado = comprobarAlumnosSentencia.executeQuery();
+	        if (resultado.next()) {
+	            int cantidadAlumnos = resultado.getInt(1);
 
-				if (cantidadAlumnos == 0) {
-					System.out.println("El grupo " + nombreGrupo + " no tiene alumnos.");
-					return false; // Si no hay alumnos, no eliminamos nada
-				}
-			}
+	            if (cantidadAlumnos == 0) {
+	                loggerGeneral.info("No se encontraron alumnos en el grupo '{}'", nombreGrupo);
+	                return false; // Si no hay alumnos, no eliminamos nada
+	            }
+	        }
 
-			// Procedemos a eliminar los alumnos si existen
-			String sql = "DELETE FROM alumnos WHERE numeroGrupo = (SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?)";
-			try (PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
-				sentencia.setString(1, nombreGrupo);
+	        // Procedemos a eliminar los alumnos si existen
+	        String sql = "DELETE FROM alumnos WHERE numeroGrupo = (SELECT numeroGrupo FROM grupos WHERE nombreGrupo = ?)";
+	        try (PreparedStatement sentencia = conexionBD.prepareStatement(sql)) {
+	            sentencia.setString(1, nombreGrupo);
 
-				int filasAfectadas = sentencia.executeUpdate();
-				return filasAfectadas > 0;
+	            int filasAfectadas = sentencia.executeUpdate();
+	            if (filasAfectadas > 0) {
+	                loggerGeneral.info("Alumnos del grupo '{}' eliminados exitosamente", nombreGrupo);
+	                return true;
+	            } else {
+	                loggerGeneral.warn("No se eliminaron alumnos del grupo '{}'", nombreGrupo);
+	                return false;
+	            }
+	        } catch (SQLException e) {
+	            loggerExcepciones.error("Error al eliminar alumnos del grupo '{}': {}", nombreGrupo, e.getMessage(), e);
+	            System.out.println("Error al eliminar alumnos del grupo: " + e.getMessage());
+	            return false;
+	        }
 
-			} catch (SQLException e) {
-				System.out.println("Error al eliminar alumnos por grupo: " + e.getMessage());
-				return false;
-			}
-
-		} catch (SQLException e) {
-			System.out.println("Error al verificar si el grupo tiene alumnos: " + e.getMessage());
-			return false;
-		}
+	    } catch (SQLException e) {
+	        loggerExcepciones.error("Error al verificar si el grupo '{}' tiene alumnos: {}", nombreGrupo, e.getMessage(), e);
+	        System.out.println("Error al verificar si el grupo tiene alumnos: " + e.getMessage());
+	        return false;
+	    }
 	}
 
 	@Override
@@ -616,135 +650,126 @@ public class AlumnosBD implements IAlumnosDao {
 	 * Muestra todos los grupos disponibles en la base de datos.
 	 * 
 	 * @param conexionBD la conexión activa a la base de datos.
-	 * @return true si se muestran los grupos correctamente, false si no hay grupos
-	 *         o hay un error.
+	 * @return true si se muestran los grupos correctamente, false si no hay grupos o hay un error.
 	 */
-
 	public static boolean mostrarTodosLosGrupos(Connection conexionBD) {
-		String sql = "SELECT nombreGrupo FROM grupos";
-		try (Statement sentencia = conexionBD.createStatement(); ResultSet resultado = sentencia.executeQuery(sql)) {
-			boolean hayGrupos = false;
-			while (resultado.next()) {
-				hayGrupos = true;
-				System.out.println("- " + resultado.getString("nombreGrupo"));
-			}
-			return hayGrupos;
-		} catch (SQLException e) {
-			System.out.println("Error al mostrar los grupos: " + e.getMessage());
-			return false;
-		}
+	    String sql = "SELECT nombreGrupo FROM grupos";
+	    try (Statement sentencia = conexionBD.createStatement(); ResultSet resultado = sentencia.executeQuery(sql)) {
+	        boolean hayGrupos = false;
+	        while (resultado.next()) {
+	            hayGrupos = true;
+	            System.out.println("- " + resultado.getString("nombreGrupo"));
+	        }
+	        if (hayGrupos) {
+	            loggerGeneral.info("Grupos mostrados exitosamente desde la base de datos.");
+	            return true;
+	        } else {
+	            loggerGeneral.warn("No se encontraron grupos en la base de datos.");
+	            return false;
+	        }
+	    } catch (SQLException e) {
+	        loggerExcepciones.error("Error al mostrar los grupos: {}", e.getMessage(), e);
+	        System.out.println("Error al mostrar los grupos: " + e.getMessage());
+	        return false;
+	    }
 	}
 
 	/**
 	 * Guarda todos los grupos y sus alumnos en un archivo XML llamado 'grupos.xml'.
-	 * Si el archivo ya existe, solicita confirmación al usuario antes de
-	 * sobrescribirlo.
+	 * Si el archivo ya existe, solicita confirmación al usuario antes de sobrescribirlo.
 	 * 
 	 * @param conexionBD La conexión activa a la base de datos MySQL.
 	 * @return true si el archivo se guarda correctamente, false si ocurre un error.
 	 */
-	
 	public static boolean guardarGruposEnXML(Connection conexionBD) {
-		// Nombre del archivo XML donde se guardarán los grupos y sus alumnos
-		String nombreArchivo = "grupos.xml";
+	    String nombreArchivo = "grupos.xml";
 
-		// Verificar si el archivo ya existe y pedir confirmación al usuario para
-		// sobrescribirlo
-		File archivoXML = new File(nombreArchivo);
-		if (archivoXML.exists()) {
-			// Solicitamos al usuario si desea sobrescribir el archivo
+	    File archivoXML = new File(nombreArchivo);
+	    if (archivoXML.exists()) {
+	        System.out.print("El archivo " + nombreArchivo + " ya existe. ¿Deseas sobrescribirlo? (S/N): ");
+	        String respuesta = sc.nextLine();
 
-			System.out.print("El archivo " + nombreArchivo + " ya existe. ¿Deseas sobrescribirlo? (S/N): ");
-			String respuesta = sc.nextLine();
+	        if (!respuesta.equalsIgnoreCase("s")) {
+	            loggerGeneral.warn("No se ha sobrescrito el archivo XML porque el usuario no lo permitió.");
+	            System.out.println("El archivo no se ha sobrescrito.");
+	            return false;
+	        }
+	    }
 
-			// Si la respuesta no es "s" o "S", no sobrescribimos el archivo
-			if (!respuesta.equalsIgnoreCase("s")) {
-				System.out.println("El archivo no se ha sobrescrito.");
-				return false; // Salimos del método si no se desea sobrescribir
-			}
-		}
+	    DocumentBuilderFactory documentoFactory = DocumentBuilderFactory.newInstance();
+	    try {
+	        DocumentBuilder documentoBuilder = documentoFactory.newDocumentBuilder();
+	        Document documentoXML = documentoBuilder.newDocument();
 
-		// Inicializamos el DocumentBuilder para crear el archivo XML
-		DocumentBuilderFactory documentoFactory = DocumentBuilderFactory.newInstance();
-		try {
-			// Creamos el documento XML
-			DocumentBuilder documentoBuilder = documentoFactory.newDocumentBuilder();
-			Document documentoXML = documentoBuilder.newDocument();
+	        Element raizElement = documentoXML.createElement("grupos");
+	        documentoXML.appendChild(raizElement);
 
-			// Creamos el elemento raíz <grupos>
-			Element raizElement = documentoXML.createElement("grupos");
-			documentoXML.appendChild(raizElement);
+	        String consultaGrupos = "SELECT * FROM grupos";
+	        try (PreparedStatement stmtGrupos = conexionBD.prepareStatement(consultaGrupos)) {
+	            ResultSet rsGrupos = stmtGrupos.executeQuery();
 
-			// Consulta SQL para obtener todos los grupos de la base de datos
-			String consultaGrupos = "SELECT * FROM grupos";
-			try (PreparedStatement stmtGrupos = conexionBD.prepareStatement(consultaGrupos)) {
-				ResultSet rsGrupos = stmtGrupos.executeQuery();
+	            while (rsGrupos.next()) {
+	                int numeroGrupo = rsGrupos.getInt("numeroGrupo");
+	                String nombreGrupo = rsGrupos.getString("nombreGrupo");
 
-				// Procesamos cada grupo encontrado
-				while (rsGrupos.next()) {
-					// Obtenemos los datos de cada grupo
-					int numeroGrupo = rsGrupos.getInt("numeroGrupo");
-					String nombreGrupo = rsGrupos.getString("nombreGrupo");
+	                Element grupoElement = documentoXML.createElement("grupo");
+	                grupoElement.setAttribute("numeroGrupo", String.valueOf(numeroGrupo));
+	                grupoElement.setAttribute("nombreGrupo", nombreGrupo);
+	                raizElement.appendChild(grupoElement);
 
-					// Creamos el elemento <grupo> y lo añadimos al XML
-					Element grupoElement = documentoXML.createElement("grupo");
-					grupoElement.setAttribute("numeroGrupo", String.valueOf(numeroGrupo));
-					grupoElement.setAttribute("nombreGrupo", nombreGrupo);
-					raizElement.appendChild(grupoElement);
+	                String consultaAlumnos = "SELECT * FROM alumnos WHERE numeroGrupo = ?";
+	                try (PreparedStatement stmtAlumnos = conexionBD.prepareStatement(consultaAlumnos)) {
+	                    stmtAlumnos.setInt(1, numeroGrupo);
+	                    ResultSet rsAlumnos = stmtAlumnos.executeQuery();
 
-					// Consulta SQL para obtener los alumnos de cada grupo
-					String consultaAlumnos = "SELECT * FROM alumnos WHERE numeroGrupo = ?";
-					try (PreparedStatement stmtAlumnos = conexionBD.prepareStatement(consultaAlumnos)) {
-						stmtAlumnos.setInt(1, numeroGrupo);
-						ResultSet rsAlumnos = stmtAlumnos.executeQuery();
+	                    while (rsAlumnos.next()) {
+	                        String nia = rsAlumnos.getString("nia");
+	                        String nombreAlumno = rsAlumnos.getString("nombre");
+	                        String apellidosAlumno = rsAlumnos.getString("apellidos");
+	                        String genero = rsAlumnos.getString("genero");
+	                        String fechaNacimiento = rsAlumnos.getString("fechaNacimiento");
+	                        String curso = rsAlumnos.getString("curso");
 
-						// Procesamos cada alumno dentro del grupo
-						while (rsAlumnos.next()) {
-							// Obtenemos los detalles de cada alumno
-							String nia = rsAlumnos.getString("nia");
-							String nombreAlumno = rsAlumnos.getString("nombre");
-							String apellidosAlumno = rsAlumnos.getString("apellidos");
-							String genero = rsAlumnos.getString("genero");
-							String fechaNacimiento = rsAlumnos.getString("fechaNacimiento");
-							String curso = rsAlumnos.getString("curso");
+	                        Element alumnoElement = documentoXML.createElement("alumno");
+	                        alumnoElement.setAttribute("nia", nia);
+	                        alumnoElement.setAttribute("nombre", nombreAlumno);
+	                        alumnoElement.setAttribute("apellidos", apellidosAlumno);
+	                        alumnoElement.setAttribute("genero", genero);
+	                        alumnoElement.setAttribute("fechaNacimiento", fechaNacimiento);
+	                        alumnoElement.setAttribute("curso", curso);
 
-							// Creamos el elemento <alumno> y añadimos los atributos correspondientes
-							Element alumnoElement = documentoXML.createElement("alumno");
-							alumnoElement.setAttribute("nia", nia);
-							alumnoElement.setAttribute("nombre", nombreAlumno);
-							alumnoElement.setAttribute("apellidos", apellidosAlumno);
-							alumnoElement.setAttribute("genero", genero);
-							alumnoElement.setAttribute("fechaNacimiento", fechaNacimiento);
-							alumnoElement.setAttribute("curso", curso);
+	                        grupoElement.appendChild(alumnoElement);
+	                    }
+	                }
+	            }
 
-							// Añadimos el alumno al grupo en el XML
-							grupoElement.appendChild(alumnoElement);
-						}
-					}
-				}
+	            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+	            Transformer transformer = transformerFactory.newTransformer();
+	            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
 
-				// Configuración del transformador para generar el archivo XML
-				TransformerFactory transformerFactory = TransformerFactory.newInstance();
-				Transformer transformer = transformerFactory.newTransformer();
-				transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+	            DOMSource source = new DOMSource(documentoXML);
+	            StreamResult result = new StreamResult(new File(nombreArchivo));
+	            transformer.transform(source, result);
 
-				// Creamos un archivo con el contenido XML generado
-				DOMSource source = new DOMSource(documentoXML);
-				StreamResult result = new StreamResult(new File(nombreArchivo));
-				transformer.transform(source, result);
-
-				// Mensaje de confirmación
-				System.out.println("El archivo XML se ha guardado correctamente.");
-				return true;
-			} catch (SQLException e) {
-				System.out.println("Error al consultar los grupos o los alumnos: " + e.getMessage());
-				return false;
-			}
-		} catch (ParserConfigurationException | TransformerException e) {
-			System.out.println("Error al generar el archivo XML: " + e.getMessage());
-			return false;
-		}
+	            loggerGeneral.info("El archivo XML se ha guardado correctamente en {}", nombreArchivo);
+	            System.out.println("El archivo XML se ha guardado correctamente.");
+	            return true;
+	        } catch (SQLException e) {
+	            loggerExcepciones.error("Error al consultar los grupos o los alumnos: {}", e.getMessage(), e);
+	            System.out.println("Error al consultar los grupos o los alumnos: " + e.getMessage());
+	            return false;
+	        }
+	    } catch (ParserConfigurationException e) {
+	        loggerExcepciones.error("Error al crear el documento XML: {}", e.getMessage(), e);
+	        System.out.println("Error al generar el archivo XML: " + e.getMessage());
+	        return false;
+	    } catch (TransformerException e) {
+	        loggerExcepciones.error("Error al transformar el documento XML: {}", e.getMessage(), e);
+	        System.out.println("Error al transformar el archivo XML: " + e.getMessage());
+	        return false;
+	    }
 	}
+
 
 	/**
 	 * Lee un archivo XML que contiene información sobre grupos y alumnos, y guarda
@@ -754,23 +779,21 @@ public class AlumnosBD implements IAlumnosDao {
 	 * @param conexionBD  Conexión activa a la base de datos.
 	 * @return true si los datos fueron procesados e insertados correctamente, false en caso de error.
 	 */
-	
 	public static boolean leerYGuardarGruposXML(String rutaArchivo, Connection conexionBD) {
 	    // Validar si el archivo XML existe en la ruta especificada
 	    File archivoXML = new File(rutaArchivo);
 	    if (!archivoXML.exists()) {
+	        loggerExcepciones.error("El archivo XML no existe: {}", rutaArchivo);
 	        System.err.println("El archivo XML no existe: " + rutaArchivo);
 	        return false;
 	    }
 
 	    try {
-	        // Crear un objeto DocumentBuilder para interpretar el contenido del archivo XML
 	        DocumentBuilderFactory fabricaDocumentos = DocumentBuilderFactory.newInstance();
 	        DocumentBuilder constructorDocumentos = fabricaDocumentos.newDocumentBuilder();
 	        Document documentoXML = constructorDocumentos.parse(archivoXML);
-	        documentoXML.getDocumentElement().normalize(); // Normalizamos el documento XML
+	        documentoXML.getDocumentElement().normalize();
 
-	        // Obtenemos la lista de todos los elementos <grupo>
 	        NodeList listaGrupos = documentoXML.getElementsByTagName("grupo");
 
 	        // Consulta SQL para insertar grupos en la tabla 'grupos'
@@ -782,73 +805,61 @@ public class AlumnosBD implements IAlumnosDao {
 	                                   "VALUES (?, ?, ?, ?, ?, ?)";
 	        PreparedStatement consultaInsertarAlumno = conexionBD.prepareStatement(sqlInsertarAlumno);
 
-	        // Recorremos la lista de elementos <grupo> del XML
 	        for (int i = 0; i < listaGrupos.getLength(); i++) {
 	            Node nodoGrupo = listaGrupos.item(i);
 
-	            // Verificamos que el nodo actual sea un elemento
 	            if (nodoGrupo.getNodeType() == Node.ELEMENT_NODE) {
 	                Element elementoGrupo = (Element) nodoGrupo;
 
-	                // Extraemos el atributo 'nombreGrupo' del elemento <grupo>
 	                String nombreGrupo = elementoGrupo.getAttribute("nombreGrupo");
-
-	                // Verificamos que el atributo 'nombreGrupo' no esté vacío
 	                if (nombreGrupo != null && !nombreGrupo.trim().isEmpty()) {
-	                    // Insertamos el grupo en la base de datos
+	                    // Insertar el grupo en la base de datos
 	                    consultaInsertarGrupo.setString(1, nombreGrupo);
 	                    consultaInsertarGrupo.executeUpdate();
 
-	                    // Obtenemos el 'numeroGrupo' generado automáticamente por la base de datos
 	                    ResultSet clavesGeneradas = consultaInsertarGrupo.getGeneratedKeys();
-	                    int numeroGrupo = 0; // Inicializamos el número del grupo
+	                    int numeroGrupo = 0;
 	                    if (clavesGeneradas.next()) {
 	                        numeroGrupo = clavesGeneradas.getInt(1);
 	                    }
 
-	                    // Procesar los elementos <alumno> dentro del grupo
 	                    NodeList listaAlumnos = elementoGrupo.getElementsByTagName("alumno");
 	                    for (int j = 0; j < listaAlumnos.getLength(); j++) {
 	                        Node nodoAlumno = listaAlumnos.item(j);
 
-	                        // Verificamos que el nodo actual sea un elemento
 	                        if (nodoAlumno.getNodeType() == Node.ELEMENT_NODE) {
 	                            Element elementoAlumno = (Element) nodoAlumno;
 
-	                            // Extraer los atributos del alumno
 	                            String nombreAlumno = elementoAlumno.getAttribute("nombre");
 	                            String apellidosAlumno = elementoAlumno.getAttribute("apellidos");
 	                            String generoAlumno = elementoAlumno.getAttribute("genero");
 	                            String fechaNacimientoAlumno = elementoAlumno.getAttribute("fechaNacimiento");
 	                            String cursoAlumno = elementoAlumno.getAttribute("curso");
 
-	                            // Insertar el alumno en la base de datos
 	                            consultaInsertarAlumno.setString(1, nombreAlumno);
 	                            consultaInsertarAlumno.setString(2, apellidosAlumno);
 	                            consultaInsertarAlumno.setString(3, generoAlumno);
 	                            consultaInsertarAlumno.setDate(4, java.sql.Date.valueOf(fechaNacimientoAlumno));
 	                            consultaInsertarAlumno.setString(5, cursoAlumno);
-	                            consultaInsertarAlumno.setInt(6, numeroGrupo); // Asociamos el alumno con el grupo
+	                            consultaInsertarAlumno.setInt(6, numeroGrupo);
+
 	                            consultaInsertarAlumno.executeUpdate();
 
-	                            // Mensaje informativo de inserción
-	                            System.out.println("Alumno insertado: " + nombreAlumno + " " + apellidosAlumno);
+	                            loggerGeneral.info("Alumno insertado: {} {}", nombreAlumno, apellidosAlumno);
 	                        }
 	                    }
 	                } else {
-	                    // Si 'nombreGrupo' está vacío, mostramos una advertencia
-	                    System.out.println("Advertencia: Nombre del grupo vacío en el XML.");
+	                    loggerExcepciones.warn("Advertencia: Nombre del grupo vacío en el XML.");
 	                }
 	            }
 	        }
 
-	        // Mensaje informativo de éxito
+	        loggerGeneral.info("Datos cargados correctamente desde el archivo XML.");
 	        System.out.println("Datos cargados correctamente desde el archivo XML.");
 	        return true;
 	    } catch (Exception e) {
-	        // Mostrar error en caso de que algo falle
+	        loggerExcepciones.error("Error al procesar el archivo XML o insertar los datos: {}", e.getMessage(), e);
 	        System.err.println("Error al procesar el archivo XML o insertar los datos: " + e.getMessage());
-	        e.printStackTrace();
 	        return false;
 	    }
 	}

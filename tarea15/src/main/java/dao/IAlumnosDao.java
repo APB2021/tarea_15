@@ -12,8 +12,6 @@ public interface IAlumnosDao {
 
 	public boolean insertarAlumno(Connection conexionBD, Alumno alumno) throws SQLException;
 
-	// añadido:
-
 	public Alumno solicitarDatosAlumno() throws SQLException;
 
 	public boolean mostrarTodosLosAlumnos(Connection conexionBD) throws SQLException;

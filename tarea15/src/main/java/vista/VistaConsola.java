@@ -9,7 +9,7 @@ import dao.IAlumnosDao;
 import dao.AlumnosBD;
 import modelo.Alumno;
 import modelo.Grupo;
-import pool.DatabasePool;
+import pool.PoolConexiones;
 
 /**
  * Esta clase se encarga de gestionar el menú principal de la aplicación.
@@ -109,7 +109,7 @@ public class VistaConsola implements IVista {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			conexionBD = DatabasePool.getConnection();
+			conexionBD = PoolConexiones.getConnection();
 
 			if (alumnosDao.insertarAlumno(conexionBD, alumno)) {
 				System.out.println("Alumno insertado correctamente.");
@@ -156,7 +156,7 @@ public class VistaConsola implements IVista {
 			Grupo grupo = new Grupo(nombreGrupo);
 
 			// Obtener la conexión a la base de datos
-			conexionBD = DatabasePool.getConnection();
+			conexionBD = PoolConexiones.getConnection();
 
 			// Intentamos insertar el nuevo grupo
 			if (alumnosDao.insertarGrupo(conexionBD, grupo)) {
@@ -179,7 +179,7 @@ public class VistaConsola implements IVista {
 	}
 
 	public void mostrarTodosLosAlumnos() {
-		try (Connection conexionBD = DatabasePool.getConnection()) {
+		try (Connection conexionBD = PoolConexiones.getConnection()) {
 			if (alumnosDao.mostrarTodosLosAlumnos(conexionBD)) {
 				System.out.println("Los alumnos se han mostrado correctamente.");
 			} else {
@@ -199,7 +199,7 @@ public class VistaConsola implements IVista {
 	public void guardarAlumnosEnFicheroTexto() {
 		try {
 			// Recuperamos todos los alumnos
-			Connection conexionBD = DatabasePool.getConnection();
+			Connection conexionBD = PoolConexiones.getConnection();
 
 			// Llamamos al método que guarda los alumnos en el fichero de texto sin esperar
 			// un valor booleano
@@ -218,7 +218,7 @@ public class VistaConsola implements IVista {
 	 */
 	public void leerAlumnosDesdeFichero() {
 		try {
-			Connection conexionBD = DatabasePool.getConnection();
+			Connection conexionBD = PoolConexiones.getConnection();
 
 			if (alumnosDao.leerAlumnosDeFicheroTexto(conexionBD)) {
 				System.out.println("Alumnos leídos e insertados correctamente desde el fichero 'alumnos.txt'.");
@@ -253,7 +253,7 @@ public class VistaConsola implements IVista {
 			}
 
 			// Conectar a la base de datos
-			conexionBD = DatabasePool.getConnection();
+			conexionBD = PoolConexiones.getConnection();
 
 			// Llamar al método del gestor para modificar el nombre
 			if (alumnosDao.modificarNombreAlumnoPorNia(conexionBD, nia, nuevoNombre)) {
@@ -288,7 +288,7 @@ public class VistaConsola implements IVista {
 			sc.nextLine(); // Limpiar buffer
 
 			// Obtener la conexión a la base de datos
-			conexionBD = DatabasePool.getConnection();
+			conexionBD = PoolConexiones.getConnection();
 
 			// Intentar eliminar el alumno
 			if (alumnosDao.eliminarAlumnoPorNIA(conexionBD, nia)) {
@@ -320,7 +320,7 @@ public class VistaConsola implements IVista {
 
 		try {
 			// Establecemos conexión con la base de datos
-			conexionBD = DatabasePool.getConnection();
+			conexionBD = PoolConexiones.getConnection();
 
 			// Mostramos los grupos disponibles
 			System.out.println("Grupos disponibles:");
@@ -375,7 +375,7 @@ public class VistaConsola implements IVista {
 
 		try {
 			// Obtenemos la conexión a la base de datos mediante la clase ConexionBDMySQL
-			conexionBD = DatabasePool.getConnection();
+			conexionBD = PoolConexiones.getConnection();
 
 			// Llamamos al método de GestorGrupos para guardar los grupos en el archivo XML
 			if (AlumnosBD.guardarGruposEnXML(conexionBD)) {
@@ -413,7 +413,7 @@ public class VistaConsola implements IVista {
 
 		try {
 			// Obtenemos la conexión a la base de datos mediante la clase ConexionBDMySQL
-			conexionBD = DatabasePool.getConnection();
+			conexionBD = PoolConexiones.getConnection();
 
 			// Ruta fija del archivo XML de grupos
 			String rutaArchivo = "grupos.xml";

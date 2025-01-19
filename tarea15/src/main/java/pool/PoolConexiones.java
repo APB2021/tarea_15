@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.util.Properties;
 
-public class DatabasePool {
+public class PoolConexiones {
 
 	private static HikariDataSource dataSource;
 

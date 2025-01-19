@@ -7,7 +7,7 @@
         </Console>
 
         <!-- Archivo principal para logs generales -->
-        <File name="File" fileName="logs/app.log" append="true">
+        <File name="GeneralFile" fileName="logs/tarea_15.log" append="true">
             <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5p %c - %m%n" />
         </File>
 
@@ -21,11 +21,11 @@
         <!-- Logger raíz para logs generales -->
         <Root level="info">
             <AppenderRef ref="Console" />
-            <AppenderRef ref="File" />
+            <AppenderRef ref="GeneralFile" />
         </Root>
 
         <!-- Logger dedicado para logs de excepciones -->
-        <Logger name="service.AlumnoService" level="error" additivity="false">
+        <Logger name="exceptions" level="error" additivity="false">
             <AppenderRef ref="ExceptionFile" />
         </Logger>
     </Loggers>
